@@ -11,6 +11,28 @@ void mouse_drawing_init(void) {
     isDrawing = false;
 }
 
+void mouse_drawing_draw_line(float x1, float y1, float x2, float y2, int color) {
+    float dx = fabsf(x2 - x1);
+    float dy = fabsf(y2 - y1);
+    float sx = (x1 < x2) ? 1.0f : -1.0f;
+    float sy = (y1 < y2) ? 1.0f : -1.0f;
+    float err = dx - dy;
+
+    while (1) {
+        engine_render_drawpixel(x1, y1, color);
+        if (x1 == x2 && y1 == y2) break;
+        float e2 = 2 * err;
+        if (e2 > -dy) {
+            err -= dy;
+            x1 += sx;
+        }
+        if (e2 < dx) {
+            err += dx;
+            y1 += sy;
+        }
+    }
+}
+
 void mouse_drawing_handle_event(SDL_Event *event) {
     if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         if (event->button.button == SDL_BUTTON_LEFT) {
@@ -26,7 +48,8 @@ void mouse_drawing_handle_event(SDL_Event *event) {
         if (isDrawing) {
             int currentX = event->motion.x;
             int currentY = event->motion.y;
-            engine_render_drawpixel((float)currentX, (float)currentY, 0xffffffff);
+            mouse_drawing_draw_line((float)lastX, (float)lastY, 
+                                  (float)currentX, (float)currentY, 0xffffffff);
             lastX = currentX;
             lastY = currentY;
         }
