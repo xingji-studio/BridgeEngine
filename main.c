@@ -13,16 +13,6 @@ extern SDL_Renderer *renderer;
 
 static void arg_parser(int count, char *arg[]);
 
-static void arg_parser(int count, char *arg[])
-{
-    if (count > 1) {
-        if (strcmp(arg[1], "--help") == 0 || strcmp(arg[1], "-h") == 0) {
-            printf("BridgeEngine demo\n");
-            exit(EXIT_SUCCESS);
-        }
-    }
-}
-
 int main(int argc, char *argv[])
 {
     arg_parser(argc, argv);
@@ -38,6 +28,8 @@ int main(int argc, char *argv[])
 
     engine_render_fillrect(10, 10, 100, 100, 0x114514ff);
     engine_render_drawpixel(200, 200, 0xffffffff);
+
+    engine_render_draw_triangle(300, 300, 400, 300, 200, 400, 0xffffffff);
 
     bool running = true;
     SDL_Event event;
@@ -62,4 +54,14 @@ int main(int argc, char *argv[])
     SDL_Quit();
 
     return 0;
+}
+
+static void arg_parser(int count, char *arg[])
+{
+    if (count > 1) {
+        if (strcmp(arg[1], "--help") == 0 || strcmp(arg[1], "-h") == 0) {
+            printf("BridgeEngine demo\n");
+            exit(EXIT_SUCCESS);
+        }
+    }
 }

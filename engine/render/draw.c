@@ -1,5 +1,6 @@
 #include "render/render.h"
 #include <SDL3/SDL.h>
+#include <math.h>
 
 typedef struct rgba {
 	int r;
@@ -53,4 +54,41 @@ void engine_render_fillrect(float ax, float ay, float width, float height, int c
 			rgba_color.a);
 
 	SDL_RenderFillRect(renderer, &rect);
+}
+
+
+void engine_render_draw_triangle(float x1, float y1, float x2, float y2, float x3, float y3, int color) {
+    if (y1 > y2) {
+        float tempX = x1, tempY = y1;
+        x1 = x2; y1 = y2;
+        x2 = tempX; y2 = tempY;
+    }
+    if (y1 > y3) {
+        float tempX = x1, tempY = y1;
+        x1 = x3; y1 = y3;
+        x3 = tempX; y3 = tempY;
+    }
+    if (y2 > y3) {
+        float tempX = x2, tempY = y2;
+        x2 = x3; y2 = y3;
+        x3 = tempX; y3 = tempY;
+    }
+
+    int totalHeight = (int)(y3 - y1);
+    for (int i = 0; i < totalHeight; i++) {
+        bool secondHalf = i > (int)(y2 - y1) || y2 == y1;
+        int segmentHeight = secondHalf ? (int)(y3 - y2) : (int)(y2 - y1);
+        float alpha = (float)i / totalHeight;
+        float beta = (float)(i - (secondHalf ? (y2 - y1) : 0)) / segmentHeight;
+        float A_x = x1 + (x3 - x1) * alpha;
+        float B_x = secondHalf ? x2 + (x3 - x2) * beta : x1 + (x2 - x1) * beta;
+        if (A_x > B_x) {
+            float temp = A_x;
+            A_x = B_x;
+            B_x = temp;
+        }
+        for (int j = (int)A_x; j <= (int)B_x; j++) {
+            engine_render_drawpixel(j, (int)(y1 + i), color);
+        }
+    }
 }
