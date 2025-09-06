@@ -11,9 +11,9 @@ typedef struct rgba {
 
 extern SDL_Renderer *renderer;
 
-static rgba_t engine_render_hex2rgba(int color);
+static rgba_t bapi_engine_render_hex2rgba(int color);
 
-static rgba_t engine_render_hex2rgba(int color)
+static rgba_t bapi_engine_render_hex2rgba(int color)
 {
 	rgba_t target;
 
@@ -25,21 +25,21 @@ static rgba_t engine_render_hex2rgba(int color)
 	return target;
 }
 
-void engine_render_drawpixel(float x, float y, int color)
+void bapi_engine_render_drawpixel(float x, float y, int color)
 {
-	rgba_t rgba_color = engine_render_hex2rgba(color);
+	rgba_t rgba_color = bapi_engine_render_hex2rgba(color);
 
 	SDL_SetRenderDrawColor(renderer, rgba_color.r, rgba_color.g, rgba_color.b, rgba_color.a);
 
-	SDL_Log("Create pixel. x = %f y = %f color = %#x rgba = (%d, %d, %d, %d)\n", x, y, color,
-			rgba_color.r, rgba_color.g, rgba_color.b, rgba_color.a);
+	// SDL_Log("Create pixel. x = %f y = %f color = %#x rgba = (%d, %d, %d, %d)\n", x, y, color,
+	// 		rgba_color.r, rgba_color.g, rgba_color.b, rgba_color.a);
 
 	SDL_RenderPoint(renderer, x, y);
 }
 
-void engine_render_fillrect(float ax, float ay, float width, float height, int color)
+void bapi_engine_render_fillrect(float ax, float ay, float width, float height, int color)
 {
-	rgba_t rgba_color = engine_render_hex2rgba(color);
+	rgba_t rgba_color = bapi_engine_render_hex2rgba(color);
 
 	SDL_SetRenderDrawColor(renderer, rgba_color.r, rgba_color.g, rgba_color.b, rgba_color.a);
 
@@ -49,15 +49,15 @@ void engine_render_fillrect(float ax, float ay, float width, float height, int c
 	rect.w = width;
 	rect.h = height;
 
-	SDL_Log("Create rect. x = %f y = %f w = %f h = %f color = %#x rgba = (%d, %d, %d, %d)\n",
-			rect.x, rect.y, rect.w, rect.h, color, rgba_color.r, rgba_color.g, rgba_color.b,
-			rgba_color.a);
+	// SDL_Log("Create rect. x = %f y = %f w = %f h = %f color = %#x rgba = (%d, %d, %d, %d)\n",
+	// 		rect.x, rect.y, rect.w, rect.h, color, rgba_color.r, rgba_color.g, rgba_color.b,
+	// 		rgba_color.a);
 
 	SDL_RenderFillRect(renderer, &rect);
 }
 
 
-void engine_render_draw_triangle(float x1, float y1, float x2, float y2, float x3, float y3, int color) {
+void bapi_engine_render_draw_triangle(float x1, float y1, float x2, float y2, float x3, float y3, int color) {
     if (y1 > y2) {
         float tempX = x1, tempY = y1;
         x1 = x2; y1 = y2;
@@ -88,7 +88,7 @@ void engine_render_draw_triangle(float x1, float y1, float x2, float y2, float x
             B_x = temp;
         }
         for (int j = (int)A_x; j <= (int)B_x; j++) {
-            engine_render_drawpixel(j, (int)(y1 + i), color);
+            bapi_engine_render_drawpixel(j, (int)(y1 + i), color);
         }
     }
 }

@@ -1,3 +1,3 @@
 #pragma once
 
-int engine_init(char *title, int width, int height);
+int bapi_engine_init(char *title, int width, int height);

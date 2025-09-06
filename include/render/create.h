@@ -1,3 +1,3 @@
 #pragma once
 
-void engine_render_create(void);
+void bapi_engine_render_create(void);

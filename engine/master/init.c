@@ -3,7 +3,7 @@
 
 SDL_Window *window;
 
-int engine_init(char *title, int width, int height)
+int bapi_engine_init(char *title, int width, int height)
 {
 	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
 		SDL_Log("Failed to initialize SDL: %s\n", SDL_GetError());

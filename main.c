@@ -17,19 +17,14 @@ int main(int argc, char *argv[])
 {
     arg_parser(argc, argv);
 
-    if (engine_init("demo", 800, 600) != 0) {
+    if (bapi_engine_init("demo", 800, 600) != 0) {
         SDL_Log("Exit...\n");
         SDL_Quit();
         return 1;
     }
 
-    engine_render_create();
-    mouse_drawing_init();
-
-    engine_render_fillrect(10, 10, 100, 100, 0x114514ff);
-    engine_render_drawpixel(200, 200, 0xffffffff);
-
-    engine_render_draw_triangle(300, 300, 400, 300, 200, 400, 0xffffffff);
+    bapi_engine_render_create();
+    bapi_mouse_drawing_init();
 
     bool running = true;
     SDL_Event event;
@@ -39,16 +34,23 @@ int main(int argc, char *argv[])
             if (event.type == SDL_EVENT_QUIT) { 
                 running = false;
             } else {
-                mouse_drawing_handle_event(&event);
+                bapi_mouse_drawing_handle_event(&event);
             }
         }
 
-        mouse_drawing_render();
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
+        
+        bapi_engine_render_fillrect(10, 10, 100, 100, 0x114514ff);
+        bapi_engine_render_drawpixel(200, 200, 0xffffffff);
+        bapi_engine_render_draw_triangle(300, 300, 400, 300, 200, 400, 0xffffffff);
+        
+        bapi_mouse_drawing_render();
         SDL_RenderPresent(renderer);
         SDL_Delay(10);
     }
 
-    mouse_drawing_cleanup();
+    bapi_mouse_drawing_cleanup();
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
