@@ -374,3 +374,5 @@ compile_commands.json
 *.o
 main
 main.exe
+text_example
+examples/libbridgeengine.so
