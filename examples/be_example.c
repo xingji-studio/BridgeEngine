@@ -1,8 +1,7 @@
 #include <BridgeEngine.h>
+#include "bapi_internal.h"
 #include <stdio.h>
-
-extern SDL_Window *window;
-extern SDL_Renderer *renderer;
+#include <stdbool.h>
 
 int main() {
     printf("BridgeEngine Version: %s\n", bridgeengine_get_version());
@@ -23,43 +22,44 @@ int main() {
     printf("Press any key in the window to exit...\n");
     
     bool running = true;
-    SDL_Event event;
+    bapi_event_t event;
     
     while (running) {
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT || event.type == SDL_EVENT_KEY_DOWN) { 
+        while (bapi_poll_event(&event)) {
+            int type = bapi_event_get_type(&event);
+            if (type == BAPI_EVENT_QUIT || type == BAPI_EVENT_KEY_DOWN) { 
                 running = false;
             }
         }
         
-        SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
-        SDL_RenderClear(renderer);
+        bapi_render_clear();
         
-        bapi_engine_render_fillrect(10, 10, 100, 100, 0xff0000ff);
-        bapi_engine_render_draw_triangle(150, 50, 200, 150, 100, 150, 0x00ff00ff);
+        bapi_fill_rect(10, 10, 100, 100, bapi_color_from_hex(0xff0000ff));
+        bapi_draw_triangle(150, 50, 200, 150, 100, 150, bapi_color_from_hex(0x00ff00ff));
         
-        SDL_Texture* bapi_engine_render_load_image(const char* filepath);
-        SDL_Texture* XINGJIImage = bapi_engine_render_load_image("XINGJI.png");
-        bapi_engine_render_draw_image(XINGJIImage, 200, 200, 200, 200);
-        SDL_Texture* text = bapi_text_render("Hello , This is BridegeEngine!", 0xffffffff);
-        SDL_Texture* text2 = bapi_text_render("By XINGJI Studio", 0xffffffff);
+        bapi_texture_t XINGJIImage = bapi_load_image("XINGJI.png");
+        if (XINGJIImage != NULL) {
+            bapi_draw_image(XINGJIImage, 200, 200, 200, 200);
+            bapi_destroy_texture(XINGJIImage);
+        }
+        
+        bapi_texture_t text = bapi_render_text("Hello , This is BridegeEngine!", bapi_color(255, 255, 255, 255));
+        bapi_texture_t text2 = bapi_render_text("By XINGJI Studio", bapi_color(255, 255, 255, 255));
         if (text != NULL) {
-            bapi_text_draw(text, 10, 200, 200, 30);
-            bapi_text_destroy(text);
+            bapi_draw_text(text, 10, 200, 200, 30);
+            bapi_destroy_text(text);
         }
         if (text2 != NULL) {
-            bapi_text_draw(text2, 10, 250, 200, 30);
-            bapi_text_destroy(text2);
+            bapi_draw_text(text2, 10, 250, 200, 30);
+            bapi_destroy_text(text2);
         }
         
-        SDL_RenderPresent(renderer);
-        SDL_Delay(16);
+        bapi_render_present();
+        bapi_delay(16);
     }
     
     bapi_text_cleanup();
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
+    bapi_engine_quit();
     
     return 0;
 }

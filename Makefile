@@ -1,57 +1,77 @@
-SDL_PKG_CONFIG	:= $(shell pkg-config --cflags --libs sdl3)
-SDL_IMAGE_PKG_CONFIG := $(shell pkg-config --cflags --libs sdl3-image)
-SDL_TTF_PKG_CONFIG := $(shell pkg-config --cflags --libs sdl3-ttf)
+# vcpkg paths
+VCPKG_ROOT := H:/vcpkg
+VCPKG_INCLUDE_DIR := $(VCPKG_ROOT)/packages/sdl3_x64-windows/include
+VCPKG_INCLUDE_DIR := $(VCPKG_INCLUDE_DIR) $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/include
+VCPKG_INCLUDE_DIR := $(VCPKG_INCLUDE_DIR) $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/include
 
-CC				:= gcc
-C_FLAGS			:= -Wall -Wextra -O2 -g3 -I include -fPIC
+VCPKG_LIB_DIR := $(VCPKG_ROOT)/packages/sdl3_x64-windows/lib
+VCPKG_LIB_DIR := $(VCPKG_LIB_DIR) $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/lib
+VCPKG_LIB_DIR := $(VCPKG_LIB_DIR) $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/lib
 
-C_SOURCES		:= $(filter-out text_example.c main.c examples/simple_example.c examples/be_example.c,$(shell find * -name "*.c")) engine/version.c
-LIB_OBJS		:= $(C_SOURCES:%.c=%.o)
-MAIN_OBJS		:= $(filter-out main.o,$(C_SOURCES:%.c=%.o)) main.o
+# Compiler settings
+CC := gcc
+C_FLAGS := -Wall -Wextra -O2 -g3 -I include -I $(VCPKG_ROOT)/packages/sdl3_x64-windows/include -I $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/include -I $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/include -fPIC
 
-all: lib staticlib main
+# Linker settings
+LD_FLAGS := -L $(VCPKG_ROOT)/packages/sdl3_x64-windows/lib -L $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/lib -L $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/lib
+LIBS := -lSDL3 -lSDL3_image -lSDL3_ttf -lopengl32 -lgdi32 -luser32 -lkernel32 -lshell32
 
+# Source files
+C_SOURCES := engine/master/init.c engine/render/create.c engine/render/draw.c engine/mouse_drawing.c engine/text.c engine/version.c
+LIB_OBJS := $(C_SOURCES:%.c=%.o)
+MAIN_OBJS := $(LIB_OBJS) main.o
+
+all: lib main
+
+# Compile rules
 %.o: %.c
-		@printf "**CC** $< -> $@\n"
-		@$(CC) $(C_FLAGS) -c -o $@ $<
+	@echo CC $< -> $@
+	@$(CC) $(C_FLAGS) -c -o $@ $<
 
+# Build shared library
 lib: $(LIB_OBJS)
-		@printf "**LIB** $^ -> libbridgeengine.so\n"
-		@$(CC) $(C_FLAGS) -shared -fPIC $^ -o libbridgeengine.so $(SDL_PKG_CONFIG) $(SDL_IMAGE_PKG_CONFIG) $(SDL_TTF_PKG_CONFIG)
+	@echo LIB $^ -> libbridgeengine.so
+	@$(CC) $(C_FLAGS) $(LD_FLAGS) -shared -fPIC $^ -o libbridgeengine.so $(LIBS)
 
-staticlib: $(LIB_OBJS)
-		@printf "**AR** $^ -> libbridgeengine.a\n"
-		@ar rcs libbridgeengine.a $^
+# Build static library
+staticlib: engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o
+	@echo AR $^ -> libbridgeengine.a
+	@ar rcs libbridgeengine.a $^
 
-# 构建main
+# Build main executable
 main: $(MAIN_OBJS)
-		@printf "**LINK** $^ -> main\n"
-		@$(CC) $(C_FLAGS) $^ -o main $(SDL_PKG_CONFIG) $(SDL_IMAGE_PKG_CONFIG) $(SDL_TTF_PKG_CONFIG)
+	@echo LINK $^ -> main
+	@$(CC) $(C_FLAGS) $(LD_FLAGS) $^ -o main $(LIBS)
 
+# Build text example
 text_example: text_example.o engine/master/init.o engine/render/create.o engine/text.o
-		@printf "**LINK** $^ -> text_example\n"
-		@$(CC) $(C_FLAGS) $^ -o text_example $(SDL_PKG_CONFIG) $(SDL_TTF_PKG_CONFIG)
+	@echo LINK $^ -> text_example
+	@$(CC) $(C_FLAGS) $(LD_FLAGS) $^ -o text_example $(LIBS)
 
+# Formatting
 %.fmt: %
-		@printf "**fmt** $< ...\n"
-		@clang-format -i $<
+	@echo fmt $< ...
+	@clang-format -i $<
 
+# Tidy
 %.tidy: %
-		@printf "**tidy** $< ...\n"
-		@clang-tidy $< -- $(C_FLAGS)
+	@echo tidy $< ...
+	@clang-tidy $< -- $(C_FLAGS)
 
 .PHONY: format check clean
 
-format: $(C_SOURCES:%=%.fmt) $(S_SOURCES:%=%.fmt) $(HEADERS:%=%.fmt)
-		@printf "**fmt** done \n"
+format: $(C_SOURCES:%=%.fmt) $(HEADERS:%=%.fmt)
+	@echo fmt done
 
 check: $(C_SOURCES:%=%.tidy) $(S_SOURCES:%=%.tidy) $(HEADERS:%=%.tidy)
-		@printf "**check** done \n"
+	@echo check done
 
+# Clean
 clean:
-	@printf "Removing $(LIB_OBJS) $(MAIN_OBJS) main libbridgeengine.so libbridgeengine.a text_example\n"
-	@rm -f $(LIB_OBJS) $(MAIN_OBJS) main libbridgeengine.so libbridgeengine.a text_example
+	@echo Removing $(LIB_OBJS) main.o main.exe libbridgeengine.so libbridgeengine.a text_example.exe
+	@del /f /q engine\master\init.o engine\render\create.o engine\render\draw.o engine\mouse_drawing.o engine\text.o engine\version.o main.o main.exe libbridgeengine.so libbridgeengine.a text_example.exe 2>nul
 
+# Install
 install: lib
 	@mkdir -p $(DESTDIR)/usr/local/lib
 	@mkdir -p $(DESTDIR)/usr/local/include
@@ -59,4 +79,4 @@ install: lib
 	@cp libbridgeengine.so libbridgeengine.a $(DESTDIR)/usr/local/lib/
 	@cp -r include/* $(DESTDIR)/usr/local/include/
 	@cp bridgeengine.pc $(DESTDIR)/usr/local/lib/pkgconfig/
-	@printf "BridgeEngine installed successfully!\n"
+	@echo BridgeEngine installed successfully!

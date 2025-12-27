@@ -1,22 +1,247 @@
 #include <SDL3/SDL.h>
+#include <SDL3_image/SDL_image.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include "bapi_types.h"
+#include "bapi_internal.h"
 
-SDL_Window *window;
+struct bapi_window_internal {
+    SDL_Window* window;
+};
 
-int bapi_engine_init(char *title, int width, int height)
+struct bapi_renderer_internal {
+    SDL_Renderer* renderer;
+};
+
+struct bapi_event_internal {
+    SDL_Event event;
+};
+
+static SDL_Window* window = NULL;
+static SDL_Renderer* renderer = NULL;
+static bool initialized = false;
+
+SDL_Renderer* bapi_internal_renderer = NULL;
+
+bapi_window_t bapi_engine_get_window(void) {
+    bapi_window_t win = malloc(sizeof(struct bapi_window_internal));
+    if (win) {
+        win->window = window;
+    }
+    return win;
+}
+
+bapi_renderer_t bapi_engine_get_renderer(void) {
+    bapi_renderer_t rend = malloc(sizeof(struct bapi_renderer_internal));
+    if (rend) {
+        rend->renderer = renderer;
+    }
+    return rend;
+}
+
+int bapi_engine_init(const char* title, int width, int height)
 {
-	if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
-		SDL_Log("Failed to initialize SDL: %s\n", SDL_GetError());
-		return 1;
-	}
+    if (initialized) {
+        return 0;
+    }
 
-	window = SDL_CreateWindow(title, width, height, 0);
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
+        SDL_Log("Failed to initialize SDL: %s\n", SDL_GetError());
+        return 1;
+    }
 
-	if (window == NULL) {
-		SDL_Log("Failed to create window: %s\n", SDL_GetError());
-		SDL_Quit();
-		return 1;
-	}
+    window = SDL_CreateWindow(title, width, height, 0);
 
-	return 0;
+    if (window == NULL) {
+        SDL_Log("Failed to create window: %s\n", SDL_GetError());
+        SDL_Quit();
+        return 1;
+    }
+
+    initialized = true;
+    return 0;
+}
+
+void bapi_engine_quit(void) {
+    if (renderer) {
+        SDL_DestroyRenderer(renderer);
+        renderer = NULL;
+    }
+    if (window) {
+        SDL_DestroyWindow(window);
+        window = NULL;
+    }
+    SDL_Quit();
+    initialized = false;
+}
+
+void bapi_engine_render_create(void)
+{
+    renderer = SDL_CreateRenderer(window, NULL);
+    bapi_internal_renderer = renderer;
+
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_RenderPresent(renderer);
+}
+
+SDL_Renderer* bapi_get_internal_renderer(void) {
+    return renderer;
+}
+
+int bapi_poll_event(bapi_event_t* event) {
+    if (event == NULL) {
+        return SDL_PollEvent(NULL);
+    }
+    return SDL_PollEvent(&event->event);
+}
+
+int bapi_event_get_type(const bapi_event_t* event) {
+    return event->event.type;
+}
+
+int bapi_event_get_key_code(const bapi_event_t* event) {
+    return event->event.key.key;
+}
+
+int bapi_event_get_mouse_x(const bapi_event_t* event) {
+    return event->event.button.x;
+}
+
+int bapi_event_get_mouse_y(const bapi_event_t* event) {
+    return event->event.button.y;
+}
+
+int bapi_event_get_mouse_button(const bapi_event_t* event) {
+    return event->event.button.button;
+}
+
+int bapi_event_get_motion_x(const bapi_event_t* event) {
+    return event->event.motion.x;
+}
+
+int bapi_event_get_motion_y(const bapi_event_t* event) {
+    return event->event.motion.y;
+}
+
+int bapi_event_is_mouse_button_down(const bapi_event_t* event) {
+    return event->event.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
+}
+
+int bapi_event_is_mouse_button_up(const bapi_event_t* event) {
+    return event->event.type == SDL_EVENT_MOUSE_BUTTON_UP;
+}
+
+int bapi_event_is_mouse_motion(const bapi_event_t* event) {
+    return event->event.type == SDL_EVENT_MOUSE_MOTION;
+}
+
+void bapi_render_clear(void) {
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+}
+
+void bapi_render_present(void) {
+    SDL_RenderPresent(renderer);
+}
+
+void bapi_set_render_color(bapi_color_t color) {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+}
+
+void bapi_delay(uint32_t ms) {
+    SDL_Delay(ms);
+}
+
+bapi_color_t bapi_color_from_hex(uint32_t hex_color) {
+    bapi_color_t color;
+    color.r = (hex_color >> 24) & 0xFF;
+    color.g = (hex_color >> 16) & 0xFF;
+    color.b = (hex_color >> 8) & 0xFF;
+    color.a = hex_color & 0xFF;
+    return color;
+}
+
+bapi_color_t bapi_color(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    bapi_color_t color = {r, g, b, a};
+    return color;
+}
+
+uint32_t bapi_get_ticks(void) {
+    return SDL_GetTicks();
+}
+
+void bapi_draw_pixel(float x, float y, bapi_color_t color) {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    SDL_RenderPoint(renderer, x, y);
+}
+
+void bapi_draw_line(float x1, float y1, float x2, float y2, bapi_color_t color) {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    SDL_RenderLine(renderer, x1, y1, x2, y2);
+}
+
+void bapi_draw_rect(float x, float y, float w, float h, bapi_color_t color) {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    SDL_FRect rect = {x, y, w, h};
+    SDL_RenderRect(renderer, &rect);
+}
+
+void bapi_fill_rect(float x, float y, float w, float h, bapi_color_t color) {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    SDL_FRect rect = {x, y, w, h};
+    SDL_RenderFillRect(renderer, &rect);
+}
+
+void bapi_draw_triangle(float x1, float y1, float x2, float y2, float x3, float y3, bapi_color_t color) {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    SDL_RenderLine(renderer, x1, y1, x2, y2);
+    SDL_RenderLine(renderer, x2, y2, x3, y3);
+    SDL_RenderLine(renderer, x3, y3, x1, y1);
+}
+
+bapi_texture_t bapi_load_image(const char* filepath) {
+    SDL_Surface* surface = IMG_Load(filepath);
+    if (surface == NULL) {
+        SDL_Log("Failed to load image %s: %s\n", filepath, SDL_GetError());
+        return NULL;
+    }
+
+    bapi_texture_t texture = malloc(sizeof(struct bapi_texture_internal));
+    if (texture == NULL) {
+        SDL_DestroySurface(surface);
+        return NULL;
+    }
+
+    texture->texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_DestroySurface(surface);
+
+    if (texture->texture == NULL) {
+        SDL_Log("Failed to create texture from %s: %s\n", filepath, SDL_GetError());
+        free(texture);
+        return NULL;
+    }
+
+    return texture;
+}
+
+void bapi_draw_image(bapi_texture_t texture, float x, float y, float w, float h) {
+    if (texture == NULL || texture->texture == NULL) {
+        SDL_Log("Texture is NULL\n");
+        return;
+    }
+
+    SDL_FRect destRect = {x, y, w, h};
+    SDL_RenderTexture(renderer, texture->texture, NULL, &destRect);
+}
+
+void bapi_destroy_texture(bapi_texture_t texture) {
+    if (texture != NULL) {
+        if (texture->texture != NULL) {
+            SDL_DestroyTexture(texture->texture);
+        }
+        free(texture);
+    }
 }

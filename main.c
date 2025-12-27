@@ -1,96 +1,221 @@
-#include "master/init.h"
-#include "render/create.h"
-#include "render/draw.h"
-#include "mouse_drawing.h"
-#include "text/text.h"
-#include <SDL3/SDL.h>
-#include <SDL3_image/SDL_image.h>
+#include "BridgeEngine.h"
+#include "bapi_internal.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <math.h>
 
-extern SDL_Window *window;
-extern SDL_Renderer *renderer;
+#define WINDOW_WIDTH 1024
+#define WINDOW_HEIGHT 768
+
+typedef struct {
+    float x, y;
+    float vx, vy;
+    float radius;
+    bapi_color_t color;
+} Ball;
+
+static Ball balls[5] = {
+    {100, 100, 3, 2, 30, {255, 0, 0, 255}},
+    {200, 200, -2, 3, 25, {0, 255, 0, 255}},
+    {300, 150, 2.5, -2, 35, {0, 0, 255, 255}},
+    {400, 300, -3, -1.5, 28, {255, 255, 0, 255}},
+    {500, 200, 2.5, 1.5, 32, {255, 0, 255, 255}},
+};
+
+static void draw_ball(Ball* ball) {
+    int segments = 32;
+    float angle_step = 2.0f * M_PI / segments;
+    
+    for (int i = 0; i < segments; i++) {
+        float angle1 = i * angle_step;
+        float angle2 = (i + 1) * angle_step;
+        
+        float x1 = ball->x + cosf(angle1) * ball->radius;
+        float y1 = ball->y + sinf(angle1) * ball->radius;
+        float x2 = ball->x + cosf(angle2) * ball->radius;
+        float y2 = ball->y + sinf(angle2) * ball->radius;
+        
+        bapi_draw_triangle(ball->x, ball->y, x1, y1, x2, y2, ball->color);
+    }
+}
+
+static void update_ball(Ball* ball, int width, int height) {
+    ball->x += ball->vx;
+    ball->y += ball->vy;
+    
+    if (ball->x - ball->radius < 0) {
+        ball->x = ball->radius;
+        ball->vx = -ball->vx;
+    }
+    if (ball->x + ball->radius > width) {
+        ball->x = width - ball->radius;
+        ball->vx = -ball->vx;
+    }
+    if (ball->y - ball->radius < 0) {
+        ball->y = ball->radius;
+        ball->vy = -ball->vy;
+    }
+    if (ball->y + ball->radius > height) {
+        ball->y = height - ball->radius;
+        ball->vy = -ball->vy;
+    }
+}
 
 int main(int argc, char* argv[]) {
-    if (bapi_engine_init("BridgeEngine Demo", 800, 600) != 0) {
-        SDL_Log("Failed to initialize engine\n");
+    printf("===========================================\n");
+    printf("  BridgeEngine Complete Feature Demo\n");
+    printf("===========================================\n\n");
+    
+    printf("[1/6] Initializing engine...\n");
+    if (bapi_engine_init("BridgeEngine Demo", WINDOW_WIDTH, WINDOW_HEIGHT) != 0) {
+        printf("Failed to initialize engine!\n");
         return 1;
     }
+    printf("  Engine initialized successfully.\n");
     
+    printf("[2/6] Creating renderer...\n");
     bapi_engine_render_create();
-    bapi_mouse_drawing_init();
+    printf("  Renderer created.\n");
     
+    printf("[3/6] Initializing text system...\n");
     if (bapi_text_init("ttf_example/example.ttf", 24) != 0) {
-        SDL_Log("Failed to initialize text system\n");
-    }
-
-    SDL_Texture* exampleImage = bapi_engine_render_load_image("image_example/XINGJI.png");
-    if (exampleImage == NULL) {
-        SDL_Log("Failed to load example image\n");
+        printf("  Warning: Failed to initialize text system, text will not be displayed.\n");
+    } else {
+        printf("  Text system initialized.\n");
     }
     
-    SDL_Texture* helloText = bapi_text_render("Hello BridgeEngine!", 0xffffffff);
-    SDL_Texture* chineseText = bapi_text_render("你好，BridgeEngine！", 0x00ff00ff);
-    SDL_Texture* studioText = bapi_text_render("XINGJI Studio", 0x00ff00ff);
-
+    printf("[4/6] Loading resources...\n");
+    bapi_texture_t logoTexture = bapi_load_image("image_example/XINGJI.png");
+    if (logoTexture == NULL) {
+        printf("  Warning: Failed to load logo image.\n");
+    } else {
+        printf("  Logo image loaded.\n");
+    }
+    
+    printf("[5/6] Rendering text...\n");
+    bapi_texture_t titleText = bapi_render_text("BridgeEngine", bapi_color(255, 255, 255, 255));
+    bapi_texture_t infoText = bapi_render_text("Press ESC to exit | Click and drag to draw", bapi_color(200, 200, 200, 255));
+    bapi_texture_t colorDemoText = bapi_render_text("Color Demo (Hex):", bapi_color(255, 200, 100, 255));
+    printf("  Text textures created.\n");
+    
+    printf("[6/6] Initializing mouse drawing...\n");
+    bapi_mouse_init();
+    printf("  Mouse drawing initialized.\n");
+    
+    printf("\n===========================================\n");
+    printf("  Demo is running!\n");
+    printf("  - Balls bounce around the screen\n");
+    printf("  - Click and drag to draw lines\n");
+    printf("  - Press ESC to exit\n");
+    printf("===========================================\n\n");
+    
     bool running = true;
-    SDL_Event event;
-
+    int frameCount = 0;
+    int fps = 0;
+    uint32_t lastTime = bapi_get_ticks();
+    uint32_t frameStartTime = lastTime;
+    
     while (running) {
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) { 
+        bapi_event_t event;
+        while (bapi_poll_event(&event)) {
+            int type = bapi_event_get_type(&event);
+            
+            if (type == BAPI_EVENT_QUIT) {
                 running = false;
+                printf("\nQuit event received.\n");
+            } else if (type == BAPI_EVENT_KEY_DOWN) {
+                if (bapi_event_get_key_code(&event) == SDLK_ESCAPE) {
+                    running = false;
+                    printf("\nESC key pressed, exiting...\n");
+                }
             } else {
-                bapi_mouse_drawing_handle_event(&event);
+                bapi_mouse_handle_event(&event);
             }
         }
-
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);
         
-        bapi_engine_render_fillrect(10, 10, 100, 100, 0x114514ff);
-        bapi_engine_render_drawpixel(200, 200, 0xffffffff);
-        bapi_engine_render_draw_triangle(300, 300, 400, 300, 200, 400, 0xffffffff);
+        bapi_render_clear();
         
-        if (exampleImage != NULL) {
-            bapi_engine_render_draw_image(exampleImage, 500, 100, 200, 200);
+        bapi_set_render_color(bapi_color(30, 30, 40, 255));
+        
+        for (int i = 0; i < 5; i++) {
+            update_ball(&balls[i], WINDOW_WIDTH, WINDOW_HEIGHT);
         }
         
-        // 绘制文字
-        if (helloText != NULL) {
-            bapi_text_draw(helloText, 50, 50, 300, 30);
-        }
-        if (chineseText != NULL) {
-            bapi_text_draw(chineseText, 50, 100, 300, 30);
-        }
-        if (studioText != NULL) {
-            bapi_text_draw(studioText, 50, 150, 300, 30);
+        for (int i = 0; i < 5; i++) {
+            draw_ball(&balls[i]);
         }
         
-        bapi_mouse_drawing_render();
-        SDL_RenderPresent(renderer);
-        SDL_Delay(10);
-    }
-
-    if (exampleImage != NULL) {
-        bapi_engine_render_destroy_image(exampleImage);
-    }
-    if (helloText != NULL) {
-        bapi_text_destroy(helloText);
-    }
-    if (chineseText != NULL) {
-        bapi_text_destroy(chineseText);
-    }
-    if (studioText != NULL) {
-        bapi_text_destroy(studioText);
+        bapi_draw_rect(50, 50, 200, 150, bapi_color(100, 100, 100, 100));
+        bapi_fill_rect(60, 60, 180, 50, bapi_color(50, 150, 50, 255));
+        bapi_draw_pixel(100, 100, bapi_color(255, 0, 0, 255));
+        
+        bapi_draw_triangle(800, 100, 850, 200, 750, 200, bapi_color(255, 165, 0, 255));
+        
+        if (logoTexture != NULL) {
+            bapi_draw_image(logoTexture, 850, 550, 120, 120);
+        }
+        
+        if (titleText != NULL) {
+            bapi_draw_text(titleText, WINDOW_WIDTH / 2 - 200, 30, 400, 40);
+        }
+        if (infoText != NULL) {
+            bapi_draw_text(infoText, WINDOW_WIDTH / 2 - 220, 80, 440, 30);
+        }
+        
+        if (colorDemoText != NULL) {
+            bapi_draw_text(colorDemoText, 50, 250, 250, 30);
+        }
+        
+        bapi_fill_rect(50, 300, 60, 60, bapi_color_from_hex(0xFF0000FF));
+        bapi_fill_rect(120, 300, 60, 60, bapi_color_from_hex(0x00FF00FF));
+        bapi_fill_rect(190, 300, 60, 60, bapi_color_from_hex(0x0000FFFF));
+        bapi_fill_rect(260, 300, 60, 60, bapi_color_from_hex(0xFFFF00FF));
+        bapi_fill_rect(330, 300, 60, 60, bapi_color_from_hex(0xFF00FFFF));
+        bapi_fill_rect(400, 300, 60, 60, bapi_color_from_hex(0x00FFFFFF));
+        bapi_fill_rect(470, 300, 60, 60, bapi_color_from_hex(0xFFFFFFFF));
+        bapi_fill_rect(540, 300, 60, 60, bapi_color_from_hex(0x808080FF));
+        
+        bapi_mouse_render();
+        
+        frameCount++;
+        uint32_t currentTime = bapi_get_ticks();
+        if (currentTime - frameStartTime >= 1000) {
+            fps = frameCount;
+            frameCount = 0;
+            frameStartTime = currentTime;
+            printf("\rFPS: %d", fps);
+            fflush(stdout);
+        }
+        
+        bapi_render_present();
+        bapi_delay(16);
     }
     
-    bapi_mouse_drawing_cleanup();
+    printf("\n\n===========================================\n");
+    printf("  Cleaning up resources...\n");
+    printf("===========================================\n");
+    
+    if (titleText != NULL) {
+        bapi_destroy_text(titleText);
+    }
+    if (infoText != NULL) {
+        bapi_destroy_text(infoText);
+    }
+    if (colorDemoText != NULL) {
+        bapi_destroy_text(colorDemoText);
+    }
+    if (logoTexture != NULL) {
+        bapi_destroy_texture(logoTexture);
+    }
+    
+    bapi_mouse_cleanup();
     bapi_text_cleanup();
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
-
+    bapi_engine_quit();
+    
+    printf("  Cleanup complete.\n");
+    printf("===========================================\n");
+    printf("  Demo finished successfully!\n");
+    printf("===========================================\n");
+    
     return 0;
 }

@@ -1,12 +1,11 @@
 #pragma once
 
-// BridgeEngine头文件
-
 #include "master/init.h"
 #include "render/create.h"
 #include "render/draw.h"
 #include "mouse_drawing.h"
 #include "text/text.h"
+#include "bapi.h"
 
 #define BRIDGEENGINE_VERSION "1.0.0"
 #define BRIDGEENGINE_MAJOR 1
