@@ -10,14 +10,14 @@ VCPKG_LIB_DIR := $(VCPKG_LIB_DIR) $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/li
 
 # Compiler settings
 CC := gcc
-C_FLAGS := -Wall -Wextra -O2 -g3 -I include -I $(VCPKG_ROOT)/packages/sdl3_x64-windows/include -I $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/include -I $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/include -fPIC
+C_FLAGS := -Wall -Wextra -O2 -g3 -I include -I $(VCPKG_ROOT)/packages/sdl3_x64-windows/include -I $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/include -I $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/include -fPIC -DBAPI_LOG_ENABLED
 
 # Linker settings
 LD_FLAGS := -L $(VCPKG_ROOT)/packages/sdl3_x64-windows/lib -L $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/lib -L $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/lib
 LIBS := -lSDL3 -lSDL3_image -lSDL3_ttf -lopengl32 -lgdi32 -luser32 -lkernel32 -lshell32
 
 # Source files
-C_SOURCES := engine/master/init.c engine/render/create.c engine/render/draw.c engine/mouse_drawing.c engine/text.c engine/version.c
+C_SOURCES := engine/master/init.c engine/render/create.c engine/render/draw.c engine/mouse_drawing.c engine/text.c engine/version.c engine/log.c
 LIB_OBJS := $(C_SOURCES:%.c=%.o)
 MAIN_OBJS := $(LIB_OBJS) main.o
 

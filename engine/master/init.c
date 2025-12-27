@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include "bapi_types.h"
 #include "bapi_internal.h"
+#include "log/log.h"
 
 struct bapi_window_internal {
     SDL_Window* window;
@@ -46,24 +47,35 @@ int bapi_engine_init(const char* title, int width, int height)
         return 0;
     }
 
+    BAPI_LOG_INIT_DEFAULT();
+
+    BAPI_LOG_INFO("Initializing BridgeEngine with title='%s', width=%d, height=%d",
+                  title, width, height);
+
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
-        SDL_Log("Failed to initialize SDL: %s\n", SDL_GetError());
+        BAPI_LOG_CRITICAL("Failed to initialize SDL: %s", SDL_GetError());
         return 1;
     }
+
+    BAPI_LOG_INFO("SDL initialized successfully");
 
     window = SDL_CreateWindow(title, width, height, 0);
 
     if (window == NULL) {
-        SDL_Log("Failed to create window: %s\n", SDL_GetError());
+        BAPI_LOG_CRITICAL("Failed to create window: %s", SDL_GetError());
         SDL_Quit();
         return 1;
     }
+
+    BAPI_LOG_INFO("Window created successfully");
 
     initialized = true;
     return 0;
 }
 
 void bapi_engine_quit(void) {
+    BAPI_LOG_INFO("Shutting down BridgeEngine...");
+
     if (renderer) {
         SDL_DestroyRenderer(renderer);
         renderer = NULL;
@@ -74,6 +86,9 @@ void bapi_engine_quit(void) {
     }
     SDL_Quit();
     initialized = false;
+
+    BAPI_LOG_INFO("BridgeEngine shutdown complete");
+    bapi_log_shutdown();
 }
 
 void bapi_engine_render_create(void)

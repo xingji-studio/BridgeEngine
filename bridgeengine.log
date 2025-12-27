@@ -1,0 +1,7 @@
+[37m[2025-12-27 18:33:47] [DEBUG] [log_test.c:14] main(): This is a debug message[0m
+[32m[2025-12-27 18:33:47] [INFO] [log_test.c:15] main(): This is an info message[0m
+[33m[2025-12-27 18:33:47] [WARN] [log_test.c:16] main(): This is a warning message[0m
+[31m[2025-12-27 18:33:47] [ERROR] [log_test.c:17] main(): This is an error message[0m
+[35m[2025-12-27 18:33:47] [CRITICAL] [log_test.c:18] main(): This is a critical message[0m
+[32m[2025-12-27 18:33:47] [INFO] [log_test.c:22] main(): Engine version info: name=BridgeEngine, value=42[0m
+[35m[2025-12-27 18:33:47] [CRITICAL] [log_test.c:25] main(): ASSERTION FAILED: This assertion should fail: 42[0m
