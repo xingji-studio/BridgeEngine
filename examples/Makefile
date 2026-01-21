@@ -19,7 +19,7 @@ EXAMPLES := be_example
 all: $(EXAMPLES)
 
 be_example: be_example.c
-	@printf "**CC** $< -> $@\n"
+	@echo CC $< -> $@
 	@$(CC) $(C_FLAGS) $(INCLUDE_PATH) -o $@ $< $(LIB_PATH) $(LIBS) $(SDL_PKG_CONFIG) $(SDL_IMAGE_PKG_CONFIG) $(SDL_TTF_PKG_CONFIG) -Wl,-rpath,.
 
 clean:

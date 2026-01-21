@@ -41,7 +41,7 @@ staticlib: engine/master/init.o engine/render/create.o engine/render/draw.o engi
 # Build main executable
 main: $(MAIN_OBJS)
 	@echo LINK $^ -> main
-	@$(CC) $(C_FLAGS) $(LD_FLAGS) $^ -o main $(LIBS)
+	@$(CC) $(C_FLAGS) $(LD_FLAGS) $^ -o main.exe $(LIBS)
 
 # Build text example
 text_example: text_example.o engine/master/init.o engine/render/create.o engine/text.o
