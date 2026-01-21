@@ -78,24 +78,10 @@ int main(int argc, char* argv[]) {
     printf("  Renderer created.\n");
     
     printf("[3/6] Initializing text system...\n");
-    if (bapi_text_init("ttf_example/example.ttf", 24) != 0) {
-        printf("  Warning: Failed to initialize text system, text will not be displayed.\n");
-    } else {
-        printf("  Text system initialized.\n");
-    }
     
     printf("[4/6] Loading resources...\n");
-    bapi_texture_t logoTexture = bapi_load_image("image_example/XINGJI.png");
-    if (logoTexture == NULL) {
-        printf("  Warning: Failed to load logo image.\n");
-    } else {
-        printf("  Logo image loaded.\n");
-    }
     
     printf("[5/6] Rendering text...\n");
-    bapi_texture_t titleText = bapi_render_text("BridgeEngine", bapi_color(255, 255, 255, 255));
-    bapi_texture_t infoText = bapi_render_text("Press ESC to exit | Click and drag to draw", bapi_color(200, 200, 200, 255));
-    bapi_texture_t colorDemoText = bapi_render_text("Color Demo (Hex):", bapi_color(255, 200, 100, 255));
     printf("  Text textures created.\n");
     
     printf("[6/6] Initializing mouse drawing...\n");
@@ -151,20 +137,11 @@ int main(int argc, char* argv[]) {
         
         bapi_draw_triangle(800, 100, 850, 200, 750, 200, bapi_color(255, 165, 0, 255));
         
-        if (logoTexture != NULL) {
-            bapi_draw_image(logoTexture, 850, 550, 120, 120);
-        }
+        bapi_draw_image("image_example/XINGJI.png", 850, 550, 120, 120);
         
-        if (titleText != NULL) {
-            bapi_draw_text(titleText, WINDOW_WIDTH / 2 - 200, 30, 400, 40);
-        }
-        if (infoText != NULL) {
-            bapi_draw_text(infoText, WINDOW_WIDTH / 2 - 220, 80, 440, 30);
-        }
+        bapi_draw_text("BridgeEngine", WINDOW_WIDTH / 2 - 200, 0, 48, bapi_color(255, 255, 255, 255));
+        bapi_draw_text("Press ESC to exit | Click and drag to draw", WINDOW_WIDTH / 2 - 220, 80, 24, bapi_color(255, 255, 255, 255));
         
-        if (colorDemoText != NULL) {
-            bapi_draw_text(colorDemoText, 50, 250, 250, 30);
-        }
         
         bapi_fill_rect(50, 300, 60, 60, bapi_color_from_hex(0xFF0000FF));
         bapi_fill_rect(120, 300, 60, 60, bapi_color_from_hex(0x00FF00FF));
@@ -195,21 +172,7 @@ int main(int argc, char* argv[]) {
     printf("  Cleaning up resources...\n");
     printf("===========================================\n");
     
-    if (titleText != NULL) {
-        bapi_destroy_text(titleText);
-    }
-    if (infoText != NULL) {
-        bapi_destroy_text(infoText);
-    }
-    if (colorDemoText != NULL) {
-        bapi_destroy_text(colorDemoText);
-    }
-    if (logoTexture != NULL) {
-        bapi_destroy_texture(logoTexture);
-    }
-    
     bapi_mouse_cleanup();
-    bapi_text_cleanup();
     bapi_engine_quit();
     
     printf("  Cleanup complete.\n");

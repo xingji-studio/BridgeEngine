@@ -7,76 +7,59 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void* font = NULL;
+void bapi_draw_text(const char* text, float x, float y, float size, bapi_color_t color) {
+    static void* font = NULL;
 
-int bapi_text_init(const char* font_path, int font_size) {
-    if (!TTF_Init()) {
-        SDL_Log("Failed to initialize SDL_ttf");
-        return -1;
-    }
-
-    font = TTF_OpenFont(font_path, font_size);
+    font = TTF_OpenFont("text/font.ttf", size);
     if (font == NULL) {
         SDL_Log("Failed to load font: %s", SDL_GetError());
         TTF_Quit();
-        return -1;
+        return;
     }
 
-    return 0;
-}
-
-bapi_texture_t bapi_render_text(const char* text, bapi_color_t color) {
     if (font == NULL || text == NULL) {
-        return NULL;
+        return;
     }
 
     SDL_Color sdl_color = {color.r, color.g, color.b, color.a};
     SDL_Surface* surface = TTF_RenderText_Blended(font, text, strlen(text), sdl_color);
     if (surface == NULL) {
         SDL_Log("Failed to render text: %s", SDL_GetError());
-        return NULL;
+        return;
     }
 
     SDL_Texture* sdl_texture = SDL_CreateTextureFromSurface(bapi_internal_renderer, surface);
-    SDL_DestroySurface(surface);
 
     if (sdl_texture == NULL) {
         SDL_Log("Failed to create texture from text surface");
-        return NULL;
+        return;
     }
 
     bapi_texture_t texture = malloc(sizeof(bapi_texture_t));
     if (texture == NULL) {
         SDL_DestroyTexture(sdl_texture);
-        return NULL;
+        return;
     }
     texture->texture = sdl_texture;
 
-    return texture;
-}
-
-void bapi_draw_text(bapi_texture_t text_texture, float x, float y, float w, float h) {
-    if (text_texture == NULL || text_texture->texture == NULL) {
+    if (texture == NULL || texture->texture == NULL) {
         return;
     }
 
-    SDL_FRect dest_rect = {x, y, w, h};
-    SDL_RenderTexture(bapi_internal_renderer, text_texture->texture, NULL, &dest_rect);
-}
+    SDL_FRect dest_rect = {x, y, surface->w, surface->h};
+    SDL_RenderTexture(bapi_internal_renderer, texture->texture, NULL, &dest_rect);
 
-void bapi_destroy_text(bapi_texture_t text_texture) {
-    if (text_texture != NULL) {
-        if (text_texture->texture != NULL) {
-            SDL_DestroyTexture(text_texture->texture);
+    SDL_DestroySurface(surface);
+
+    if (texture != NULL) {
+        if (texture->texture != NULL) {
+            SDL_DestroyTexture(texture->texture);
         }
-        free(text_texture);
+        free(texture);
     }
-}
 
-void bapi_text_cleanup(void) {
     if (font != NULL) {
         TTF_CloseFont(font);
         font = NULL;
     }
-    TTF_Quit();
 }

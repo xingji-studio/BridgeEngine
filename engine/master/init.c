@@ -1,5 +1,6 @@
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
+#include <SDL3_ttf/SDL_ttf.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -69,6 +70,11 @@ int bapi_engine_init(const char* title, int width, int height)
 
     BAPI_LOG_INFO("Window created successfully");
 
+    if (!TTF_Init()) {
+        SDL_Log("Failed to initialize SDL_ttf");
+        return 0;
+    }
+
     initialized = true;
     return 0;
 }
@@ -76,6 +82,7 @@ int bapi_engine_init(const char* title, int width, int height)
 void bapi_engine_quit(void) {
     BAPI_LOG_INFO("Shutting down BridgeEngine...");
 
+    TTF_Quit();
     if (renderer) {
         SDL_DestroyRenderer(renderer);
         renderer = NULL;
@@ -217,17 +224,17 @@ void bapi_draw_triangle(float x1, float y1, float x2, float y2, float x3, float 
     SDL_RenderLine(renderer, x3, y3, x1, y1);
 }
 
-bapi_texture_t bapi_load_image(const char* filepath) {
+void bapi_draw_image(const char* filepath, float x, float y, float w, float h) {
     SDL_Surface* surface = IMG_Load(filepath);
     if (surface == NULL) {
         SDL_Log("Failed to load image %s: %s\n", filepath, SDL_GetError());
-        return NULL;
+        return;
     }
 
     bapi_texture_t texture = malloc(sizeof(struct bapi_texture_internal));
     if (texture == NULL) {
         SDL_DestroySurface(surface);
-        return NULL;
+        return;
     }
 
     texture->texture = SDL_CreateTextureFromSurface(renderer, surface);
@@ -236,13 +243,9 @@ bapi_texture_t bapi_load_image(const char* filepath) {
     if (texture->texture == NULL) {
         SDL_Log("Failed to create texture from %s: %s\n", filepath, SDL_GetError());
         free(texture);
-        return NULL;
+        return;
     }
 
-    return texture;
-}
-
-void bapi_draw_image(bapi_texture_t texture, float x, float y, float w, float h) {
     if (texture == NULL || texture->texture == NULL) {
         SDL_Log("Texture is NULL\n");
         return;
@@ -250,9 +253,7 @@ void bapi_draw_image(bapi_texture_t texture, float x, float y, float w, float h)
 
     SDL_FRect destRect = {x, y, w, h};
     SDL_RenderTexture(renderer, texture->texture, NULL, &destRect);
-}
 
-void bapi_destroy_texture(bapi_texture_t texture) {
     if (texture != NULL) {
         if (texture->texture != NULL) {
             SDL_DestroyTexture(texture->texture);

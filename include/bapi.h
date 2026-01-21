@@ -35,15 +35,9 @@ void bapi_draw_line(float x1, float y1, float x2, float y2, bapi_color_t color);
 void bapi_draw_rect(float x, float y, float w, float h, bapi_color_t color);
 void bapi_draw_triangle(float x1, float y1, float x2, float y2, float x3, float y3, bapi_color_t color);
 
-bapi_texture_t bapi_load_image(const char* filepath);
-void bapi_draw_image(bapi_texture_t texture, float x, float y, float w, float h);
-void bapi_destroy_texture(bapi_texture_t texture);
+void bapi_draw_image(const char* filepath, float x, float y, float w, float h);
 
-int bapi_text_init(const char* font_path, int font_size);
-bapi_texture_t bapi_render_text(const char* text, bapi_color_t color);
-void bapi_draw_text(bapi_texture_t text_texture, float x, float y, float w, float h);
-void bapi_destroy_text(bapi_texture_t text_texture);
-void bapi_text_cleanup(void);
+void bapi_draw_text(const char* text, float x, float y, float size, bapi_color_t color);
 
 void bapi_mouse_init(void);
 void bapi_mouse_handle_event(const bapi_event_t* event);
