@@ -4,7 +4,6 @@
 extern "C" {
 #endif
 
-void bapi_engine_render_create(void);
 
 #ifdef __cplusplus
 }

@@ -70,6 +70,14 @@ int bapi_engine_init(const char* title, int width, int height)
 
     BAPI_LOG_INFO("Window created successfully");
 
+    renderer = SDL_CreateRenderer(window, NULL);
+    bapi_internal_renderer = renderer;
+
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    SDL_RenderPresent(renderer);
+
     if (!TTF_Init()) {
         SDL_Log("Failed to initialize SDL_ttf");
         return 0;
@@ -98,17 +106,6 @@ void bapi_engine_quit(void) {
     bapi_log_shutdown();
 }
 
-void bapi_engine_render_create(void)
-{
-    renderer = SDL_CreateRenderer(window, NULL);
-    bapi_internal_renderer = renderer;
-
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    SDL_RenderClear(renderer);
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    SDL_RenderPresent(renderer);
-}
-
 SDL_Renderer* bapi_get_internal_renderer(void) {
     return renderer;
 }
@@ -124,8 +121,20 @@ int bapi_event_get_type(const bapi_event_t* event) {
     return event->event.type;
 }
 
-int bapi_event_get_key_code(const bapi_event_t* event) {
-    return event->event.key.key;
+uint8_t bapi_sdlkeycode_convert_table[0x80] = {
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '\b', '\t', ' ', ' ', ' ', ' ', ' ', ' ', 
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', KEY_ESC, ' ', ' ', ' ', ' ',  
+    ' ', '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/',
+    '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?', 
+    '@', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', 
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '[', '\\', ']', '^', '_', 
+    '`', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 
+    'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '{', '|', '}', '~', ' ',
+};
+
+uint8_t bapi_event_get_key_code(const bapi_event_t* event) {
+
+    return bapi_sdlkeycode_convert_table[event->event.key.key];
 }
 
 int bapi_event_get_mouse_x(const bapi_event_t* event) {

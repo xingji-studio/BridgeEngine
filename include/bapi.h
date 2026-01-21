@@ -9,13 +9,12 @@ extern "C" {
 
 int bapi_engine_init(const char* title, int width, int height);
 void bapi_engine_quit(void);
-void bapi_engine_render_create(void);
 bapi_window_t bapi_engine_get_window(void);
 bapi_renderer_t bapi_engine_get_renderer(void);
 
 int bapi_poll_event(bapi_event_t* event);
 int bapi_event_get_type(const bapi_event_t* event);
-int bapi_event_get_key_code(const bapi_event_t* event);
+uint8_t bapi_event_get_key_code(const bapi_event_t* event);
 int bapi_event_get_mouse_x(const bapi_event_t* event);
 int bapi_event_get_mouse_y(const bapi_event_t* event);
 int bapi_event_get_mouse_button(const bapi_event_t* event);

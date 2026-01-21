@@ -73,17 +73,6 @@ int main(int argc, char* argv[]) {
     }
     printf("  Engine initialized successfully.\n");
     
-    printf("[2/6] Creating renderer...\n");
-    bapi_engine_render_create();
-    printf("  Renderer created.\n");
-    
-    printf("[3/6] Initializing text system...\n");
-    
-    printf("[4/6] Loading resources...\n");
-    
-    printf("[5/6] Rendering text...\n");
-    printf("  Text textures created.\n");
-    
     printf("[6/6] Initializing mouse drawing...\n");
     bapi_mouse_init();
     printf("  Mouse drawing initialized.\n");
@@ -110,7 +99,7 @@ int main(int argc, char* argv[]) {
                 running = false;
                 printf("\nQuit event received.\n");
             } else if (type == BAPI_EVENT_KEY_DOWN) {
-                if (bapi_event_get_key_code(&event) == SDLK_ESCAPE) {
+                if (bapi_event_get_key_code(&event) == KEY_ESC) {
                     running = false;
                     printf("\nESC key pressed, exiting...\n");
                 }
@@ -165,7 +154,7 @@ int main(int argc, char* argv[]) {
         }
         
         bapi_render_present();
-        bapi_delay(16);
+        // bapi_delay(16);
     }
     
     printf("\n\n===========================================\n");

@@ -28,6 +28,33 @@ typedef struct {
     float h;
 } bapi_rect_t;
 
+enum special_key_code
+{
+    KEY_ESC = 128,
+    KEY_BACKSPACE,
+    KEY_TAB,
+    KEY_ENTER,
+    KEY_CAPS,
+    KEY_SHIFT,
+    KEY_CTRL,
+    KEY_ALT,
+    KEY_SPACE,
+    KEY_F1,
+    KEY_F2,
+    KEY_F3,
+    KEY_F4,
+    KEY_F5,
+    KEY_F6,
+    KEY_F7,
+    KEY_F8,
+    KEY_F9,
+    KEY_F10,
+    KEY_F11,
+    KEY_F12,
+    KEY_NUML,
+    KEY_SCROLL
+};
+
 #ifdef __cplusplus
 }
 #endif
