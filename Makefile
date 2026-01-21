@@ -35,8 +35,7 @@ lib: $(LIB_OBJS)
 
 # Build static library
 staticlib: engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o
-	@echo AR $^ -> libbridgeengine.a
-	@ar rcs libbridgeengine.a $^
+	@ar cr libbridgeengine.a $^
 
 # Build main executable
 main: $(MAIN_OBJS)
