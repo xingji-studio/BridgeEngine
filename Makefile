@@ -34,7 +34,7 @@ lib: $(LIB_OBJS)
 	@$(CC) $(C_FLAGS) $(LD_FLAGS) -shared -fPIC $^ -o libbridgeengine.so $(LIBS)
 
 # Build static library
-staticlib: engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o
+staticlib: engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o engine/log.o
 	@ar cr libbridgeengine.a $^
 
 # Build main executable
