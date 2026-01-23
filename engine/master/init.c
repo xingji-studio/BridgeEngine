@@ -48,27 +48,27 @@ int bapi_engine_init(const char* title, int width, int height)
         return 0;
     }
 
-    BAPI_LOG_INIT_DEFAULT();
-
-    BAPI_LOG_INFO("Initializing BridgeEngine with title='%s', width=%d, height=%d",
-                  title, width, height);
+    // BAPI_LOG_INFO("Initializing BridgeEngine with title='%s', width=%d, height=%d",
+    //               title, width, height);
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO)) {
+        BAPI_LOG_INIT_DEFAULT();
         BAPI_LOG_CRITICAL("Failed to initialize SDL: %s", SDL_GetError());
         return 1;
     }
 
-    BAPI_LOG_INFO("SDL initialized successfully");
+    // BAPI_LOG_INFO("SDL initialized successfully");
 
     window = SDL_CreateWindow(title, width, height, 0);
 
     if (window == NULL) {
+        BAPI_LOG_INIT_DEFAULT();
         BAPI_LOG_CRITICAL("Failed to create window: %s", SDL_GetError());
         SDL_Quit();
         return 1;
     }
 
-    BAPI_LOG_INFO("Window created successfully");
+    // BAPI_LOG_INFO("Window created successfully");
 
     renderer = SDL_CreateRenderer(window, NULL);
     bapi_internal_renderer = renderer;
@@ -88,7 +88,7 @@ int bapi_engine_init(const char* title, int width, int height)
 }
 
 void bapi_engine_quit(void) {
-    BAPI_LOG_INFO("Shutting down BridgeEngine...");
+    // BAPI_LOG_INFO("Shutting down BridgeEngine...");
 
     TTF_Quit();
     if (renderer) {
@@ -102,7 +102,7 @@ void bapi_engine_quit(void) {
     SDL_Quit();
     initialized = false;
 
-    BAPI_LOG_INFO("BridgeEngine shutdown complete");
+    // BAPI_LOG_INFO("BridgeEngine shutdown complete");
     bapi_log_shutdown();
 }
 
