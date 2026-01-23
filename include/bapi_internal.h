@@ -17,4 +17,12 @@ typedef struct bapi_event_internal bapi_event_t;
 
 extern SDL_Renderer* bapi_internal_renderer;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 uint32_t bapi_get_ticks(void);
+
+#ifdef __cplusplus
+}
+#endif
