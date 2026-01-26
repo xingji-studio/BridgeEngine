@@ -377,6 +377,4 @@ main.exe
 text_example
 examples/libbridgeengine.so
 *.a
-*.so
-*.dll
 .trae/*
