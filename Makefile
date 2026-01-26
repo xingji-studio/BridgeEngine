@@ -87,9 +87,9 @@ check: $(C_SOURCES:%=%.tidy) $(S_SOURCES:%=%.tidy) $(HEADERS:%=%.tidy)
 clean:
 	@echo Removing $(LIB_OBJS) main.o main$(EXE_EXT) libbridgeengine$(LIB_EXT) libbridgeengine.a text_example$(EXE_EXT)
 ifeq ($(OS),Windows_NT)
-	@del /f /q engine\master\init.o engine\render\create.o engine\render\draw.o engine\mouse_drawing.o engine\text.o engine\version.o main.o main.exe libbridgeengine.so libbridgeengine.a text_example.exe 2>nul
+	@del /f /q engine\master\init.o engine\render\create.o engine\render\draw.o engine\mouse_drawing.o engine\text.o engine\version.o main.o main.exe libbridgeengine.so libbridgeengine.dll libbridgeengine.a text_example.exe 2>nul
 else
-	@rm -f engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o main.o main libbridgeengine.so libbridgeengine.a text_example
+	@rm -f engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o main.o main libbridgeengine.so libbridgeengine.dll libbridgeengine.a text_example
 endif
 
 # Install

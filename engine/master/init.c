@@ -116,7 +116,7 @@ int bapi_event_get_type(const bapi_event_t* event) {
 }
 
 uint8_t bapi_sdlkeycode_convert_table[0x80] = {
-    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '\b', '\t', ' ', ' ', ' ', ' ', ' ', ' ', 
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', '\b', KEY_TAB, ' ', ' ', ' ', ' ', ' ', ' ', 
     ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', KEY_ESC, ' ', ' ', ' ', ' ',  
     ' ', '!', '"', '#', '$', '%', '&', '\'', '(', ')', '*', '+', ',', '-', '.', '/',
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?', 
@@ -126,9 +126,23 @@ uint8_t bapi_sdlkeycode_convert_table[0x80] = {
     'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '{', '|', '}', '~', ' ',
 };
 
-uint8_t bapi_event_get_key_code(const bapi_event_t* event) {
+uint8_t bapi_sdlspkeycode_convert_table[0x90] = {
+    KEY_CAPS, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_F7, KEY_F8, KEY_F9, KEY_F10, KEY_F11, KEY_F12, ' ', KEY_SCROLL, ' ', 
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', KEY_NUML, '/', '*', '-', '+',  
+    '\n', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ',
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', 
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', 
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', 
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', 
+    ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', 
+    ' ', ' ', ' ', ' ', ' ', KEY_CTRL, KEY_SHIFT, KEY_ALT, ' ', KEY_CTRL, KEY_SHIFT, KEY_ALT, ' ', ' ', ' ', ' ', 
+};
 
-    return bapi_sdlkeycode_convert_table[event->event.key.key];
+uint8_t bapi_event_get_key_code(const bapi_event_t* event) {
+    if (event->event.key.key < 0x80)
+        return bapi_sdlkeycode_convert_table[event->event.key.key];
+    else
+        return bapi_sdlspkeycode_convert_table[event->event.key.key - 0x40000039u];
 }
 
 int bapi_event_get_mouse_x(const bapi_event_t* event) {

@@ -378,3 +378,5 @@ text_example
 examples/libbridgeengine.so
 *.a
 .trae/*
+*.dll
+*.so
