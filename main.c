@@ -155,10 +155,10 @@ int main(int argc, char* argv[]) {
         bapi_fill_rect(470, 300, 60, 60, bapi_color_from_hex(0xFFFFFFFF));
         bapi_fill_rect(540, 300, 60, 60, bapi_color_from_hex(0x808080FF));
         
-        // Render button
-        bapi_button_render(test_button);
-        
         bapi_mouse_render();
+        
+        // Render button on top of everything
+        bapi_button_render(test_button);
         
         frameCount++;
         uint32_t currentTime = bapi_get_ticks();

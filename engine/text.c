@@ -10,14 +10,13 @@
 void bapi_draw_text(const char* text, float x, float y, float size, bapi_color_t color) {
     static void* font = NULL;
 
-    font = TTF_OpenFont("text/font.ttf", size);
-    if (font == NULL) {
-        SDL_Log("Failed to load font: %s", SDL_GetError());
-        TTF_Quit();
+    if (text == NULL) {
         return;
     }
 
-    if (font == NULL || text == NULL) {
+    font = TTF_OpenFont("text/font.ttf", size);
+    if (font == NULL) {
+        SDL_Log("Failed to load font: %s", SDL_GetError());
         return;
     }
 
@@ -25,6 +24,7 @@ void bapi_draw_text(const char* text, float x, float y, float size, bapi_color_t
     SDL_Surface* surface = TTF_RenderText_Blended(font, text, strlen(text), sdl_color);
     if (surface == NULL) {
         SDL_Log("Failed to render text: %s", SDL_GetError());
+        TTF_CloseFont(font);
         return;
     }
 
@@ -32,34 +32,47 @@ void bapi_draw_text(const char* text, float x, float y, float size, bapi_color_t
 
     if (sdl_texture == NULL) {
         SDL_Log("Failed to create texture from text surface");
-        return;
-    }
-
-    bapi_texture_t texture = malloc(sizeof(bapi_texture_t));
-    if (texture == NULL) {
-        SDL_DestroyTexture(sdl_texture);
-        return;
-    }
-    texture->texture = sdl_texture;
-
-    if (texture == NULL || texture->texture == NULL) {
+        SDL_DestroySurface(surface);
+        TTF_CloseFont(font);
         return;
     }
 
     SDL_FRect dest_rect = {x, y, surface->w, surface->h};
-    SDL_RenderTexture(bapi_internal_renderer, texture->texture, NULL, &dest_rect);
+    SDL_RenderTexture(bapi_internal_renderer, sdl_texture, NULL, &dest_rect);
 
+    SDL_DestroyTexture(sdl_texture);
     SDL_DestroySurface(surface);
+    TTF_CloseFont(font);
+}
 
-    if (texture != NULL) {
-        if (texture->texture != NULL) {
-            SDL_DestroyTexture(texture->texture);
-        }
-        free(texture);
+void bapi_get_text_size(const char* text, float size, float* width, float* height) {
+    static void* font = NULL;
+
+    if (text == NULL) {
+        if (width) *width = 0;
+        if (height) *height = 0;
+        return;
     }
 
-    if (font != NULL) {
+    font = TTF_OpenFont("text/font.ttf", size);
+    if (font == NULL) {
+        SDL_Log("Failed to load font: %s", SDL_GetError());
+        if (width) *width = 0;
+        if (height) *height = 0;
+        return;
+    }
+
+    int text_w, text_h;
+    if (TTF_GetStringSize(font, text, -1, &text_w, &text_h) != 0) {
+        SDL_Log("Failed to measure text: %s", SDL_GetError());
+        if (width) *width = 0;
+        if (height) *height = 0;
         TTF_CloseFont(font);
-        font = NULL;
+        return;
+    } else {
+        if (width) *width = (float)text_w;
+        if (height) *height = (float)text_h;
     }
+
+    TTF_CloseFont(font);
 }

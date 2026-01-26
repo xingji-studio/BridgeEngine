@@ -37,6 +37,7 @@ void bapi_draw_triangle(float x1, float y1, float x2, float y2, float x3, float 
 void bapi_draw_image(const char* filepath, float x, float y, float w, float h);
 
 void bapi_draw_text(const char* text, float x, float y, float size, bapi_color_t color);
+void bapi_get_text_size(const char* text, float size, float* width, float* height);
 
 void bapi_mouse_init(void);
 void bapi_mouse_handle_event(const bapi_event_t* event);

@@ -36,6 +36,8 @@ typedef struct {
     const char* text;
     bapi_color_t text_color;
     float text_size;
+    float text_width;
+    float text_height;
     int is_clicked;
     int is_hovered;
 } bapi_button_t;
