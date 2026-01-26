@@ -77,6 +77,15 @@ int main(int argc, char* argv[]) {
     bapi_mouse_init();
     printf("  Mouse drawing initialized.\n");
     
+    bapi_button_t* test_button = bapi_create_button(
+        WINDOW_WIDTH / 2 - 100, 300, 200, 60, "Click Me!",
+        bapi_color(50, 150, 50, 255), 
+        bapi_color(70, 180, 70, 255), 
+        bapi_color(30, 120, 30, 255), 
+        bapi_color(255, 255, 255, 255),  
+        24 
+    );
+    
     printf("\n===========================================\n");
     printf("  Demo is running!\n");
     printf("  - Balls bounce around the screen\n");
@@ -105,6 +114,11 @@ int main(int argc, char* argv[]) {
                 }
             } else {
                 bapi_mouse_handle_event(&event);
+            }
+            
+            // Update button state
+            if (bapi_button_update(test_button, &event)) {
+                printf("\nButton clicked!\n");
             }
         }
         
@@ -141,6 +155,9 @@ int main(int argc, char* argv[]) {
         bapi_fill_rect(470, 300, 60, 60, bapi_color_from_hex(0xFFFFFFFF));
         bapi_fill_rect(540, 300, 60, 60, bapi_color_from_hex(0x808080FF));
         
+        // Render button
+        bapi_button_render(test_button);
+        
         bapi_mouse_render();
         
         frameCount++;
@@ -160,6 +177,9 @@ int main(int argc, char* argv[]) {
     printf("\n\n===========================================\n");
     printf("  Cleaning up resources...\n");
     printf("===========================================\n");
+    
+    // Destroy button
+    bapi_destroy_button(test_button);
     
     bapi_mouse_cleanup();
     bapi_engine_quit();

@@ -16,10 +16,6 @@ struct bapi_renderer_internal {
     SDL_Renderer* renderer;
 };
 
-struct bapi_event_internal {
-    SDL_Event event;
-};
-
 static SDL_Window* window = NULL;
 static SDL_Renderer* renderer = NULL;
 static bool initialized = false;
@@ -101,8 +97,6 @@ void bapi_engine_quit(void) {
     }
     SDL_Quit();
     initialized = false;
-
-    // BAPI_LOG_INFO("BridgeEngine shutdown complete");
     bapi_log_shutdown();
 }
 

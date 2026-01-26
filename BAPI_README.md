@@ -198,6 +198,92 @@ bapi_texture_t bapi_load_image(const char* filepath);
 
 - **功能**: 从文件加载图像
 - **参数**: `filepath`: 图像文件路径（支持 PNG、JPEG 等格式）
+
+## 按钮系统
+
+### 按钮类型
+
+```c
+typedef struct {
+    bapi_rect_t rect;            // 按钮矩形区域
+    bapi_color_t normal_color;   // 正常状态颜色
+    bapi_color_t hover_color;    // 悬停状态颜色
+    bapi_color_t click_color;    // 点击状态颜色
+    const char* text;            // 按钮文本
+    bapi_color_t text_color;     // 文本颜色
+    float text_size;             // 文本大小
+    int is_clicked;              // 是否被点击
+    int is_hovered;              // 是否被悬停
+} bapi_button_t;
+```
+
+### 创建按钮
+
+```c
+bapi_button_t* bapi_create_button(float x, float y, float w, float h, const char* text, bapi_color_t normal_color, bapi_color_t hover_color, bapi_color_t click_color, bapi_color_t text_color, float text_size);
+```
+
+- **功能**: 创建一个新的按钮
+- **参数**:
+  - `x`, `y`: 按钮左上角坐标
+  - `w`, `h`: 按钮宽度和高度
+  - `text`: 按钮上显示的文本
+  - `normal_color`: 按钮正常状态下的颜色
+  - `hover_color`: 鼠标悬停在按钮上时的颜色
+  - `click_color`: 按钮被点击时的颜色
+  - `text_color`: 按钮文本的颜色
+  - `text_size`: 按钮文本的大小
+- **返回值**: 成功返回按钮指针，失败返回 NULL
+
+### 销毁按钮
+
+```c
+void bapi_destroy_button(bapi_button_t* button);
+```
+
+- **功能**: 销毁按钮并释放资源
+- **参数**: `button`: 要销毁的按钮指针
+
+### 更新按钮状态
+
+```c
+int bapi_button_update(bapi_button_t* button, const bapi_event_t* event);
+```
+
+- **功能**: 更新按钮状态，处理鼠标事件
+- **参数**:
+  - `button`: 要更新的按钮指针
+  - `event`: 事件指针
+- **返回值**: 当按钮被点击并释放时返回 1，否则返回 0
+
+### 渲染按钮
+
+```c
+void bapi_button_render(bapi_button_t* button);
+```
+
+- **功能**: 渲染按钮到屏幕上
+- **参数**: `button`: 要渲染的按钮指针
+
+### 检查按钮是否被点击
+
+```c
+int bapi_button_is_clicked(bapi_button_t* button);
+```
+
+- **功能**: 检查按钮当前是否处于点击状态
+- **参数**: `button`: 要检查的按钮指针
+- **返回值**: 按钮被点击返回 1，否则返回 0
+
+### 检查按钮是否被悬停
+
+```c
+int bapi_button_is_hovered(bapi_button_t* button);
+```
+
+- **功能**: 检查鼠标是否悬停在按钮上
+- **参数**: `button`: 要检查的按钮指针
+- **返回值**: 鼠标悬停返回 1，否则返回 0
 - **返回值**: 成功返回纹理句柄，失败返回 NULL
 
 ### 绘制图像

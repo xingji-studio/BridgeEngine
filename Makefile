@@ -1,23 +1,41 @@
-# vcpkg paths
-VCPKG_ROOT := H:/vcpkg
-VCPKG_INCLUDE_DIR := $(VCPKG_ROOT)/packages/sdl3_x64-windows/include
-VCPKG_INCLUDE_DIR := $(VCPKG_INCLUDE_DIR) $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/include
-VCPKG_INCLUDE_DIR := $(VCPKG_INCLUDE_DIR) $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/include
+ifeq ($(OS),Windows_NT)
+    # Windows settings
+    VCPKG_ROOT := H:/vcpkg
+    VCPKG_INCLUDE_DIR := $(VCPKG_ROOT)/packages/sdl3_x64-windows/include
+    VCPKG_INCLUDE_DIR := $(VCPKG_INCLUDE_DIR) $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/include
+    VCPKG_INCLUDE_DIR := $(VCPKG_INCLUDE_DIR) $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/include
 
-VCPKG_LIB_DIR := $(VCPKG_ROOT)/packages/sdl3_x64-windows/lib
-VCPKG_LIB_DIR := $(VCPKG_LIB_DIR) $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/lib
-VCPKG_LIB_DIR := $(VCPKG_LIB_DIR) $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/lib
+    VCPKG_LIB_DIR := $(VCPKG_ROOT)/packages/sdl3_x64-windows/lib
+    VCPKG_LIB_DIR := $(VCPKG_LIB_DIR) $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/lib
+    VCPKG_LIB_DIR := $(VCPKG_LIB_DIR) $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/lib
 
-# Compiler settings
-CC := gcc
-C_FLAGS := -Wall -Wextra -O2 -g3 -I include -I $(VCPKG_ROOT)/packages/sdl3_x64-windows/include -I $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/include -I $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/include -fPIC -DBAPI_LOG_ENABLED
+    EXE_EXT := .exe
+    LIB_EXT := .dll
 
-# Linker settings
-LD_FLAGS := -L $(VCPKG_ROOT)/packages/sdl3_x64-windows/lib -L $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/lib -L $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/lib
-LIBS := -lSDL3 -lSDL3_image -lSDL3_ttf -lopengl32 -lgdi32 -luser32 -lkernel32 -lshell32
+    # Compiler settings
+    CC := gcc
+    C_FLAGS := -Wall -Wextra -O2 -g3 -I include -I $(VCPKG_ROOT)/packages/sdl3_x64-windows/include -I $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/include -I $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/include -fPIC -DBAPI_LOG_ENABLED
+
+    # Linker settings
+    LD_FLAGS := -L $(VCPKG_ROOT)/packages/sdl3_x64-windows/lib -L $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/lib -L $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/lib
+    LIBS := -lSDL3 -lSDL3_image -lSDL3_ttf -lopengl32 -lgdi32 -luser32 -lkernel32 -lshell32
+else
+    # Linux settings
+    # Extension settings
+    EXE_EXT :=
+    LIB_EXT := .so
+
+    # Compiler settings
+    CC := gcc
+    C_FLAGS := -Wall -Wextra -O2 -g3 -I include -fPIC -DBAPI_LOG_ENABLED
+
+    # Linker settings
+    LD_FLAGS :=
+    LIBS := -lSDL3 -lSDL3_image -lSDL3_ttf -lGL -lm
+endif
 
 # Source files
-C_SOURCES := engine/master/init.c engine/render/create.c engine/render/draw.c engine/mouse_drawing.c engine/text.c engine/version.c engine/log.c
+C_SOURCES := engine/master/init.c engine/render/create.c engine/render/draw.c engine/mouse_drawing.c engine/text.c engine/version.c engine/log.c engine/button/button.c
 LIB_OBJS := $(C_SOURCES:%.c=%.o)
 MAIN_OBJS := $(LIB_OBJS) main.o
 
@@ -30,22 +48,22 @@ all: lib main
 
 # Build shared library
 lib: $(LIB_OBJS)
-	@echo LIB $^ -> libbridgeengine.so
-	@$(CC) $(C_FLAGS) $(LD_FLAGS) -shared -fPIC $^ -o libbridgeengine.so $(LIBS)
+	@echo LIB $^ -> libbridgeengine$(LIB_EXT)
+	@$(CC) $(C_FLAGS) $(LD_FLAGS) -shared -fPIC $^ -o libbridgeengine$(LIB_EXT) $(LIBS)
 
 # Build static library
-staticlib: engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o engine/log.o
+staticlib: engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o engine/log.o engine/button/button.o
 	@ar cr libbridgeengine.a $^
 
 # Build main executable
 main: $(MAIN_OBJS)
-	@echo LINK $^ -> main
-	@$(CC) $(C_FLAGS) $(LD_FLAGS) $^ -o main.exe $(LIBS)
+	@echo LINK $^ -> main$(EXE_EXT)
+	@$(CC) $(C_FLAGS) $(LD_FLAGS) $^ -o main$(EXE_EXT) $(LIBS)
 
 # Build text example
 text_example: text_example.o engine/master/init.o engine/render/create.o engine/text.o
-	@echo LINK $^ -> text_example
-	@$(CC) $(C_FLAGS) $(LD_FLAGS) $^ -o text_example $(LIBS)
+	@echo LINK $^ -> text_example$(EXE_EXT)
+	@$(CC) $(C_FLAGS) $(LD_FLAGS) $^ -o text_example$(EXE_EXT) $(LIBS)
 
 # Formatting
 %.fmt: %
@@ -67,8 +85,12 @@ check: $(C_SOURCES:%=%.tidy) $(S_SOURCES:%=%.tidy) $(HEADERS:%=%.tidy)
 
 # Clean
 clean:
-	@echo Removing $(LIB_OBJS) main.o main.exe libbridgeengine.so libbridgeengine.a text_example.exe
+	@echo Removing $(LIB_OBJS) main.o main$(EXE_EXT) libbridgeengine$(LIB_EXT) libbridgeengine.a text_example$(EXE_EXT)
+ifeq ($(OS),Windows_NT)
 	@del /f /q engine\master\init.o engine\render\create.o engine\render\draw.o engine\mouse_drawing.o engine\text.o engine\version.o main.o main.exe libbridgeengine.so libbridgeengine.a text_example.exe 2>nul
+else
+	@rm -f engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o main.o main libbridgeengine.so libbridgeengine.a text_example
+endif
 
 # Install
 install: lib

@@ -28,6 +28,18 @@ typedef struct {
     float h;
 } bapi_rect_t;
 
+typedef struct {
+    bapi_rect_t rect;
+    bapi_color_t normal_color;
+    bapi_color_t hover_color;
+    bapi_color_t click_color;
+    const char* text;
+    bapi_color_t text_color;
+    float text_size;
+    int is_clicked;
+    int is_hovered;
+} bapi_button_t;
+
 enum special_key_code
 {
     KEY_ESC = 128,
