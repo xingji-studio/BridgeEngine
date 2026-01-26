@@ -62,17 +62,20 @@ void bapi_get_text_size(const char* text, float size, float* width, float* heigh
         return;
     }
 
-    int text_w, text_h;
-    if (TTF_GetStringSize(font, text, -1, &text_w, &text_h) != 0) {
-        SDL_Log("Failed to measure text: %s", SDL_GetError());
+    SDL_Color sdl_color = {255, 255, 255, 255};
+    SDL_Surface* surface = TTF_RenderText_Blended(font, text, strlen(text), sdl_color);
+    
+    if (surface == NULL) {
+        SDL_Log("Failed to render text surface: %s", SDL_GetError());
         if (width) *width = 0;
         if (height) *height = 0;
         TTF_CloseFont(font);
         return;
-    } else {
-        if (width) *width = (float)text_w;
-        if (height) *height = (float)text_h;
     }
 
+    if (width) *width = (float)surface->w;
+    if (height) *height = (float)surface->h;
+
+    SDL_DestroySurface(surface);
     TTF_CloseFont(font);
 }

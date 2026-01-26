@@ -29,6 +29,10 @@ bapi_button_t* bapi_create_button(float x, float y, float w, float h, const char
     button->text_width = 0;
     button->text_height = 0;
     
+    if (text != NULL) {
+        bapi_get_text_size(text, text_size, &button->text_width, &button->text_height);
+    }
+    
     return button;
 }
 
@@ -82,10 +86,8 @@ void bapi_button_render(bapi_button_t* button) {
     bapi_draw_rect(button->rect.x, button->rect.y, button->rect.w, button->rect.h, bapi_color(0, 0, 0, 255));
 
     if (button->text != NULL) {
-        float estimated_text_width = strlen(button->text) * button->text_size * 0.5f;
-        float estimated_text_height = button->text_size * 1.50f;
-        float text_x = button->rect.x + (button->rect.w - estimated_text_width) / 2;
-        float text_y = button->rect.y + (button->rect.h - estimated_text_height) / 2;
+        float text_x = button->rect.x + (button->rect.w - button->text_width) / 2;
+        float text_y = button->rect.y + (button->rect.h - button->text_height) / 2;
         
         bapi_draw_text(button->text, text_x, text_y, button->text_size, button->text_color);
     }

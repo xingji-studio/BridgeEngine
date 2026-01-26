@@ -78,7 +78,7 @@ int main(int argc, char* argv[]) {
     printf("  Mouse drawing initialized.\n");
     
     bapi_button_t* test_button = bapi_create_button(
-        WINDOW_WIDTH / 2 - 100, 300, 200, 60, "Click Me!",
+        WINDOW_WIDTH / 2 - 100, 300, 200, 60, "XINGJI",
         bapi_color(50, 150, 50, 255), 
         bapi_color(70, 180, 70, 255), 
         bapi_color(30, 120, 30, 255), 
