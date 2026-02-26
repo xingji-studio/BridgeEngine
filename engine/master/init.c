@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <math.h>
 #include "bapi_types.h"
 #include "bapi_internal.h"
 #include "log/log.h"
@@ -239,6 +240,88 @@ void bapi_draw_triangle(float x1, float y1, float x2, float y2, float x3, float 
     SDL_RenderLine(renderer, x1, y1, x2, y2);
     SDL_RenderLine(renderer, x2, y2, x3, y3);
     SDL_RenderLine(renderer, x3, y3, x1, y1);
+}
+
+void bapi_draw_circle(float cx, float cy, float radius, bapi_color_t color) {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    int segments = 64;
+    float angle_step = 2.0f * (float)M_PI / segments;
+    
+    for (int i = 0; i < segments; i++) {
+        float angle1 = i * angle_step;
+        float angle2 = (i + 1) * angle_step;
+        
+        float x1 = cx + cosf(angle1) * radius;
+        float y1 = cy + sinf(angle1) * radius;
+        float x2 = cx + cosf(angle2) * radius;
+        float y2 = cy + sinf(angle2) * radius;
+        
+        SDL_RenderLine(renderer, x1, y1, x2, y2);
+    }
+}
+
+void bapi_fill_circle(float cx, float cy, float radius, bapi_color_t color) {
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    int segments = 64;
+    float angle_step = 2.0f * (float)M_PI / segments;
+    
+    for (int i = 0; i < segments; i++) {
+        float angle1 = i * angle_step;
+        float angle2 = (i + 1) * angle_step;
+        
+        float x1 = cx + cosf(angle1) * radius;
+        float y1 = cy + sinf(angle1) * radius;
+        float x2 = cx + cosf(angle2) * radius;
+        float y2 = cy + sinf(angle2) * radius;
+        
+        SDL_RenderLine(renderer, cx, cy, x1, y1);
+        SDL_RenderLine(renderer, x1, y1, x2, y2);
+        SDL_RenderLine(renderer, x2, y2, cx, cy);
+    }
+}
+
+void bapi_draw_polygon(float cx, float cy, float radius, int sides, bapi_color_t color) {
+    if (sides < 3) {
+        return;
+    }
+    
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    float angle_step = 2.0f * (float)M_PI / sides;
+    
+    for (int i = 0; i < sides; i++) {
+        float angle1 = i * angle_step - (float)M_PI / 2;
+        float angle2 = (i + 1) * angle_step - (float)M_PI / 2;
+        
+        float x1 = cx + cosf(angle1) * radius;
+        float y1 = cy + sinf(angle1) * radius;
+        float x2 = cx + cosf(angle2) * radius;
+        float y2 = cy + sinf(angle2) * radius;
+        
+        SDL_RenderLine(renderer, x1, y1, x2, y2);
+    }
+}
+
+void bapi_fill_polygon(float cx, float cy, float radius, int sides, bapi_color_t color) {
+    if (sides < 3) {
+        return;
+    }
+    
+    SDL_SetRenderDrawColor(renderer, color.r, color.g, color.b, color.a);
+    float angle_step = 2.0f * (float)M_PI / sides;
+    
+    for (int i = 0; i < sides; i++) {
+        float angle1 = i * angle_step - (float)M_PI / 2;
+        float angle2 = (i + 1) * angle_step - (float)M_PI / 2;
+        
+        float x1 = cx + cosf(angle1) * radius;
+        float y1 = cy + sinf(angle1) * radius;
+        float x2 = cx + cosf(angle2) * radius;
+        float y2 = cy + sinf(angle2) * radius;
+        
+        SDL_RenderLine(renderer, cx, cy, x1, y1);
+        SDL_RenderLine(renderer, x1, y1, x2, y2);
+        SDL_RenderLine(renderer, x2, y2, cx, cy);
+    }
 }
 
 void bapi_draw_image(const char* filepath, float x, float y, float w, float h) {

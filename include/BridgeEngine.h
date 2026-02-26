@@ -5,6 +5,7 @@
 #include "render/draw.h"
 #include "mouse_drawing.h"
 #include "text/text.h"
+#include "audio/audio.h"
 #include "bapi.h"
 #include "log/log.h"
 

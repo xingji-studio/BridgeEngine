@@ -2,6 +2,11 @@
 ## 鹊桥引擎 (ZH)
 鹊桥引擎是一个跨平台的2D图形引擎。
 * 查看api文档请点击[这里](BAPI_README.md)
+* Windows用户请将vcpkg添加到系统Path。并运行
+```
+vcpkg install sdl3 sdl3-ttf sdl3-image
+```
+
 ### 构建
 ```bash
 # 动态库

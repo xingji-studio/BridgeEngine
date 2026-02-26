@@ -1,6 +1,14 @@
 ifeq ($(OS),Windows_NT)
-    # Windows settings
-    VCPKG_ROOT := H:/vcpkg
+    ifndef VCPKG_ROOT
+        VCPKG_FROM_PATH := $(shell where vcpkg 2>nul)
+        ifneq ($(VCPKG_FROM_PATH),)
+            VCPKG_ROOT := $(shell dirname "$(VCPKG_FROM_PATH)" 2>nul)
+        endif
+    endif
+    ifndef VCPKG_ROOT
+        $(error "vcpkg not found! Please set VCPKG_ROOT environment variable or add vcpkg to PATH")
+    endif
+    
     VCPKG_INCLUDE_DIR := $(VCPKG_ROOT)/packages/sdl3_x64-windows/include
     VCPKG_INCLUDE_DIR := $(VCPKG_INCLUDE_DIR) $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/include
     VCPKG_INCLUDE_DIR := $(VCPKG_INCLUDE_DIR) $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/include
@@ -35,7 +43,7 @@ else
 endif
 
 # Source files
-C_SOURCES := engine/master/init.c engine/render/create.c engine/render/draw.c engine/mouse_drawing.c engine/text.c engine/version.c engine/log.c engine/button/button.c
+C_SOURCES := engine/master/init.c engine/render/create.c engine/render/draw.c engine/mouse_drawing.c engine/text.c engine/version.c engine/log.c engine/button/button.c engine/scene/scene.c engine/level/level.c engine/xml/xml_loader.c engine/audio/audio.c
 LIB_OBJS := $(C_SOURCES:%.c=%.o)
 MAIN_OBJS := $(LIB_OBJS) main.o
 
@@ -52,9 +60,9 @@ lib: $(LIB_OBJS)
 	@$(CC) $(C_FLAGS) $(LD_FLAGS) -shared -fPIC $^ -o libbridgeengine$(LIB_EXT) $(LIBS)
 
 # Build static library
-staticlib: engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o engine/log.o engine/button/button.o
+staticlib: engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o engine/log.o engine/button/button.o engine/scene/scene.o engine/level/level.o engine/xml/xml_loader.o engine/audio/audio.o
 	@ar cr libbridgeengine.a $^
-
+xj380_statickib: 
 # Build main executable
 main: $(MAIN_OBJS)
 	@echo LINK $^ -> main$(EXE_EXT)
@@ -87,9 +95,9 @@ check: $(C_SOURCES:%=%.tidy) $(S_SOURCES:%=%.tidy) $(HEADERS:%=%.tidy)
 clean:
 	@echo Removing $(LIB_OBJS) main.o main$(EXE_EXT) libbridgeengine$(LIB_EXT) libbridgeengine.a text_example$(EXE_EXT)
 ifeq ($(OS),Windows_NT)
-	@del /f /q engine\master\init.o engine\render\create.o engine\render\draw.o engine\mouse_drawing.o engine\text.o engine\version.o main.o main.exe libbridgeengine.so libbridgeengine.dll libbridgeengine.a text_example.exe 2>nul
+	@del /f /q engine\master\init.o engine\render\create.o engine\render\draw.o engine\mouse_drawing.o engine\text.o engine\version.o main.o main.exe libbridgeengine.so libbridgeengine.dll libbridgeengine.a text_example.exe engine\scene\scene.o engine\level\level.o engine\xml\xml_loader.o engine\log.o engine\button\button.o engine\audio\audio.o 2>nul
 else
-	@rm -f engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o main.o main libbridgeengine.so libbridgeengine.dll libbridgeengine.a text_example
+	@rm -f engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o main.o main libbridgeengine.so libbridgeengine.dll libbridgeengine.a text_example engine/scene/scene.o engine/level/level.o engine/xml/xml_loader.o engine/log.o engine/button/button.o engine/audio/audio.o
 endif
 
 # Install

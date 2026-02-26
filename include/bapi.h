@@ -33,11 +33,17 @@ void bapi_draw_pixel(float x, float y, bapi_color_t color);
 void bapi_draw_line(float x1, float y1, float x2, float y2, bapi_color_t color);
 void bapi_draw_rect(float x, float y, float w, float h, bapi_color_t color);
 void bapi_draw_triangle(float x1, float y1, float x2, float y2, float x3, float y3, bapi_color_t color);
+void bapi_draw_circle(float cx, float cy, float radius, bapi_color_t color);
+void bapi_fill_circle(float cx, float cy, float radius, bapi_color_t color);
+void bapi_draw_polygon(float cx, float cy, float radius, int sides, bapi_color_t color);
+void bapi_fill_polygon(float cx, float cy, float radius, int sides, bapi_color_t color);
 
 void bapi_draw_image(const char* filepath, float x, float y, float w, float h);
 
 void bapi_draw_text(const char* text, float x, float y, float size, bapi_color_t color);
 void bapi_get_text_size(const char* text, float size, float* width, float* height);
+void bapi_text_init(void);
+void bapi_text_cleanup(void);
 
 void bapi_mouse_init(void);
 void bapi_mouse_handle_event(const bapi_event_t* event);
@@ -46,6 +52,9 @@ void bapi_mouse_draw_line(float x1, float y1, float x2, float y2, bapi_color_t c
 void bapi_mouse_clear(void);
 void bapi_mouse_cleanup(void);
 #include "button/button.h"
+#include "scene/scene.h"
+#include "level/level.h"
+#include "xml/xml_loader.h"
 
 bapi_color_t bapi_color_from_hex(uint32_t hex_color);
 bapi_color_t bapi_color(uint8_t r, uint8_t g, uint8_t b, uint8_t a);

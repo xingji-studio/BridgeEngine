@@ -178,6 +178,56 @@ void bapi_draw_triangle(float x1, float y1, float x2, float y2, float x3, float 
   - `x1`, `y1`, `x2`, `y2`, `x3`, `y3`: 三个顶点坐标
   - `color`: 颜色
 
+### 绘制圆形边框
+
+```c
+void bapi_draw_circle(float cx, float cy, float radius, bapi_color_t color);
+```
+
+- **功能**: 绘制圆形边框
+- **参数**:
+  - `cx`, `cy`: 圆心坐标
+  - `radius`: 半径
+  - `color`: 颜色
+
+### 填充圆形
+
+```c
+void bapi_fill_circle(float cx, float cy, float radius, bapi_color_t color);
+```
+
+- **功能**: 绘制填充圆形
+- **参数**:
+  - `cx`, `cy`: 圆心坐标
+  - `radius`: 半径
+  - `color`: 颜色
+
+### 绘制正多边形边框
+
+```c
+void bapi_draw_polygon(float cx, float cy, float radius, int sides, bapi_color_t color);
+```
+
+- **功能**: 绘制正多边形边框
+- **参数**:
+  - `cx`, `cy`: 中心坐标
+  - `radius`: 外接圆半径
+  - `sides`: 边数（最小为3）
+  - `color`: 颜色
+
+### 填充正多边形
+
+```c
+void bapi_fill_polygon(float cx, float cy, float radius, int sides, bapi_color_t color);
+```
+
+- **功能**: 绘制填充正多边形
+- **参数**:
+  - `cx`, `cy`: 中心坐标
+  - `radius`: 外接圆半径
+  - `sides`: 边数（最小为3，小于3时不绘制）
+  - `color`: 颜色
+
 ### 兼容旧 API
 
 以下函数保持向后兼容，支持十六进制颜色参数：
@@ -487,6 +537,348 @@ void bapi_mouse_drawing_render(void);
 void bapi_mouse_drawing_cleanup(void);
 void bapi_mouse_drawing_draw_line(float x1, float y1, float x2, float y2, int color);
 void bapi_mouse_drawing_clear_lines(void);
+```
+
+## 音频系统
+
+音频系统支持加载和播放WAV格式的音效文件，包括音量控制和循环播放功能。
+
+### 音频类型
+
+```c
+typedef struct bapi_sound_internal* bapi_sound_t;
+```
+
+### 音频初始化与清理
+
+```c
+int bapi_audio_init(void);
+void bapi_audio_cleanup(void);
+```
+
+- **bapi_audio_init()**: 初始化音频子系统，返回0表示成功
+- **bapi_audio_cleanup()**: 清理音频子系统，释放所有音频资源
+
+### 音效加载与播放
+
+```c
+bapi_sound_t bapi_sound_load(const char* filepath);
+int bapi_sound_play(bapi_sound_t sound);
+void bapi_sound_stop(bapi_sound_t sound);
+void bapi_sound_free(bapi_sound_t sound);
+```
+
+- **bapi_sound_load()**: 加载WAV格式的音效文件，返回音效句柄，失败返回NULL
+- **bapi_sound_play()**: 播放已加载的音效，返回0表示成功
+- **bapi_sound_stop()**: 停止播放音效
+- **bapi_sound_free()**: 释放音效资源
+
+### 音效控制
+
+```c
+void bapi_sound_set_volume(bapi_sound_t sound, float volume);
+void bapi_sound_set_loop(bapi_sound_t sound, int loop);
+```
+
+- **bapi_sound_set_volume()**: 设置音效音量（范围：0.0-1.0）
+- **bapi_sound_set_loop()**: 设置音效是否循环播放（1=循环，0=单次）
+
+### 音频更新
+
+```c
+void bapi_sound_update(void);
+```
+
+- **bapi_sound_update()**: 在主循环中调用，用于处理循环播放等音频更新操作
+
+## 场景管理
+
+场景管理系统允许您创建和管理多个游戏场景，支持场景切换和生命周期回调。
+
+### 场景类型
+
+```c
+typedef struct bapi_scene_internal* bapi_scene_t;
+typedef struct bapi_scene_manager_internal* bapi_scene_manager_t;
+```
+
+### 场景回调类型
+
+```c
+typedef void (*bapi_scene_on_enter_fn)(bapi_scene_t scene);
+typedef void (*bapi_scene_on_exit_fn)(bapi_scene_t scene);
+typedef void (*bapi_scene_on_update_fn)(bapi_scene_t scene, float delta_time);
+typedef void (*bapi_scene_on_render_fn)(bapi_scene_t scene);
+
+typedef struct {
+    bapi_scene_on_enter_fn on_enter;
+    bapi_scene_on_exit_fn on_exit;
+    bapi_scene_on_update_fn on_update;
+    bapi_scene_on_render_fn on_render;
+    void* user_data;
+} bapi_scene_callbacks_t;
+```
+
+### 创建场景
+
+```c
+bapi_scene_t bapi_scene_create(const char* name, bapi_scene_callbacks_t callbacks);
+```
+
+- **功能**: 创建一个新场景
+- **参数**:
+  - `name`: 场景名称
+  - `callbacks`: 场景回调函数结构体
+- **返回值**: 成功返回场景句柄，失败返回 NULL
+
+### 销毁场景
+
+```c
+void bapi_scene_destroy(bapi_scene_t scene);
+```
+
+- **功能**: 销毁场景并释放资源
+- **参数**: `scene`: 要销毁的场景句柄
+
+### 获取场景名称
+
+```c
+const char* bapi_scene_get_name(bapi_scene_t scene);
+```
+
+- **功能**: 获取场景名称
+- **参数**: `scene`: 场景句柄
+- **返回值**: 场景名称字符串
+
+### 场景用户数据
+
+```c
+void* bapi_scene_get_user_data(bapi_scene_t scene);
+void bapi_scene_set_user_data(bapi_scene_t scene, void* user_data);
+```
+
+- **功能**: 获取或设置场景的用户数据
+
+### 创建场景管理器
+
+```c
+bapi_scene_manager_t bapi_scene_manager_create(void);
+```
+
+- **功能**: 创建场景管理器
+- **返回值**: 成功返回场景管理器句柄，失败返回 NULL
+
+### 销毁场景管理器
+
+```c
+void bapi_scene_manager_destroy(bapi_scene_manager_t manager);
+```
+
+- **功能**: 销毁场景管理器及其所有场景
+
+### 添加场景
+
+```c
+int bapi_scene_manager_add_scene(bapi_scene_manager_t manager, bapi_scene_t scene);
+```
+
+- **功能**: 将场景添加到管理器
+- **返回值**: 成功返回 0，失败返回负值
+
+### 切换场景
+
+```c
+int bapi_scene_manager_switch_scene(bapi_scene_manager_t manager, const char* name);
+```
+
+- **功能**: 切换到指定名称的场景
+- **参数**:
+  - `manager`: 场景管理器
+  - `name`: 目标场景名称
+- **返回值**: 成功返回 0，场景不存在返回 -2
+
+### 获取当前场景
+
+```c
+bapi_scene_t bapi_scene_manager_get_current_scene(bapi_scene_manager_t manager);
+bapi_scene_t bapi_scene_manager_get_scene(bapi_scene_manager_t manager, const char* name);
+```
+
+- **功能**: 获取当前场景或指定名称的场景
+
+### 更新和渲染
+
+```c
+void bapi_scene_manager_update(bapi_scene_manager_t manager, float delta_time);
+void bapi_scene_manager_render(bapi_scene_manager_t manager);
+```
+
+- **功能**: 更新和渲染当前场景
+
+## 关卡管理
+
+关卡管理系统支持关卡的加载、卸载和序列管理。
+
+### 关卡类型
+
+```c
+typedef struct bapi_level_internal* bapi_level_t;
+typedef struct bapi_level_manager_internal* bapi_level_manager_t;
+```
+
+### 关卡回调类型
+
+```c
+typedef void (*bapi_level_on_load_fn)(bapi_level_t level);
+typedef void (*bapi_level_on_unload_fn)(bapi_level_t level);
+typedef void (*bapi_level_on_update_fn)(bapi_level_t level, float delta_time);
+typedef void (*bapi_level_on_render_fn)(bapi_level_t level);
+
+typedef struct {
+    bapi_level_on_load_fn on_load;
+    bapi_level_on_unload_fn on_unload;
+    bapi_level_on_update_fn on_update;
+    bapi_level_on_render_fn on_render;
+    void* user_data;
+} bapi_level_callbacks_t;
+```
+
+### 创建关卡
+
+```c
+bapi_level_t bapi_level_create(const char* name, int index, bapi_level_callbacks_t callbacks);
+```
+
+- **功能**: 创建一个新关卡
+- **参数**:
+  - `name`: 关卡名称
+  - `index`: 关卡索引（用于序列管理）
+  - `callbacks`: 关卡回调函数结构体
+- **返回值**: 成功返回关卡句柄，失败返回 NULL
+
+### 销毁关卡
+
+```c
+void bapi_level_destroy(bapi_level_t level);
+```
+
+- **功能**: 销毁关卡并释放资源
+
+### 获取关卡信息
+
+```c
+const char* bapi_level_get_name(bapi_level_t level);
+int bapi_level_get_index(bapi_level_t level);
+void* bapi_level_get_user_data(bapi_level_t level);
+void bapi_level_set_user_data(bapi_level_t level, void* user_data);
+```
+
+- **功能**: 获取关卡名称、索引或用户数据
+
+### 创建关卡管理器
+
+```c
+bapi_level_manager_t bapi_level_manager_create(void);
+void bapi_level_manager_destroy(bapi_level_manager_t manager);
+```
+
+- **功能**: 创建或销毁关卡管理器
+
+### 添加关卡
+
+```c
+int bapi_level_manager_add_level(bapi_level_manager_t manager, bapi_level_t level);
+```
+
+- **功能**: 将关卡添加到管理器
+
+### 加载关卡
+
+```c
+int bapi_level_manager_load_level(bapi_level_manager_t manager, const char* name);
+int bapi_level_manager_load_level_by_index(bapi_level_manager_t manager, int index);
+```
+
+- **功能**: 按名称或索引加载关卡
+- **返回值**: 成功返回 0，关卡不存在返回 -2
+
+### 关卡序列管理
+
+```c
+int bapi_level_manager_next_level(bapi_level_manager_t manager);
+int bapi_level_manager_previous_level(bapi_level_manager_t manager);
+```
+
+- **功能**: 加载下一个或上一个关卡
+- **返回值**: 成功返回 0，没有更多关卡返回 -2
+
+### 获取关卡信息
+
+```c
+bapi_level_t bapi_level_manager_get_current_level(bapi_level_manager_t manager);
+bapi_level_t bapi_level_manager_get_level(bapi_level_manager_t manager, const char* name);
+bapi_level_t bapi_level_manager_get_level_by_index(bapi_level_manager_t manager, int index);
+int bapi_level_manager_get_level_count(bapi_level_manager_t manager);
+```
+
+- **功能**: 获取当前关卡、指定关卡或关卡总数
+
+### 更新和渲染
+
+```c
+void bapi_level_manager_update(bapi_level_manager_t manager, float delta_time);
+void bapi_level_manager_render(bapi_level_manager_t manager);
+```
+
+- **功能**: 更新和渲染当前关卡
+
+## XML 配置文件支持
+
+引擎支持通过 XML 文件加载场景和关卡配置。
+
+### 从 XML 加载
+
+```c
+bapi_scene_manager_t bapi_scene_manager_load_from_xml(const char* filepath);
+bapi_level_manager_t bapi_level_manager_load_from_xml(const char* filepath);
+```
+
+- **功能**: 从 XML 文件加载场景或关卡管理器
+- **参数**: `filepath`: XML 文件路径
+- **返回值**: 成功返回管理器句柄，失败返回 NULL
+
+### 保存到 XML
+
+```c
+int bapi_scene_manager_save_to_xml(bapi_scene_manager_t manager, const char* filepath);
+int bapi_level_manager_save_to_xml(bapi_level_manager_t manager, const char* filepath);
+```
+
+- **功能**: 将场景或关卡管理器保存到 XML 文件
+- **返回值**: 成功返回 0，失败返回 -1
+
+### XML 文件格式
+
+#### 场景配置文件格式
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<scenes>
+  <scene name="main_menu" />
+  <scene name="game_play" />
+  <scene name="settings" />
+</scenes>
+```
+
+#### 关卡配置文件格式
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<levels>
+  <level name="level_1" index="1" />
+  <level name="level_2" index="2" />
+  <level name="level_3" index="3" />
+</levels>
 ```
 
 ## 完整使用示例
