@@ -34,6 +34,7 @@ static bapi_scene_manager_t g_scene_manager = NULL;
 static bapi_level_manager_t g_level_manager = NULL;
 static bapi_button_t* g_demo_button = NULL;
 static bapi_sound_t g_test_sound = NULL;
+static bapi_video_t g_test_video = NULL;
 
 static Ball g_balls[5] = {
     {100, 100, 3, 2, 30, {255, 80, 80, 255}},
@@ -67,13 +68,14 @@ static void draw_panel(int x, int y, int w, int h, const char* title) {
 }
 
 static void draw_help_panel(void) {
-    draw_panel(WINDOW_WIDTH - 260, 100, 250, 200, "Controls");
+    draw_panel(WINDOW_WIDTH - 260, 100, 250, 230, "Controls");
     bapi_draw_text("1 - Menu Scene",    WINDOW_WIDTH - 245, 140, 18, COLOR_CYAN);
     bapi_draw_text("2 - Game Scene",    WINDOW_WIDTH - 245, 165, 18, COLOR_GREEN);
     bapi_draw_text("3 - Settings Scene", WINDOW_WIDTH - 245, 190, 18, COLOR_ORANGE);
-    bapi_draw_text("N - Next Level",    WINDOW_WIDTH - 245, 220, 18, COLOR_YELLOW);
-    bapi_draw_text("P - Prev Level",    WINDOW_WIDTH - 245, 245, 18, COLOR_YELLOW);
-    bapi_draw_text("ESC - Exit",        WINDOW_WIDTH - 245, 275, 18, COLOR_RED);
+    bapi_draw_text("4 - Video Scene",   WINDOW_WIDTH - 245, 215, 18, COLOR_MAGENTA);
+    bapi_draw_text("N - Next Level",    WINDOW_WIDTH - 245, 250, 18, COLOR_YELLOW);
+    bapi_draw_text("P - Prev Level",    WINDOW_WIDTH - 245, 275, 18, COLOR_YELLOW);
+    bapi_draw_text("ESC - Exit",        WINDOW_WIDTH - 245, 305, 18, COLOR_RED);
 }
 
 static void draw_color_palette(void) {
@@ -143,6 +145,41 @@ static void on_scene_settings_render(bapi_scene_t scene) {
     bapi_draw_text("Fullscreen: Off", CENTER_X - 70, 400, 20, COLOR_WHITE);
 }
 
+static void on_scene_video_enter(bapi_scene_t scene) { 
+    (void)scene; 
+    printf("[Scene] Video\n"); 
+    if (g_test_video != NULL) {
+        bapi_video_play(g_test_video);
+    }
+}
+static void on_scene_video_exit(bapi_scene_t scene) { 
+    (void)scene; 
+    if (g_test_video != NULL) {
+        bapi_video_stop(g_test_video);
+    }
+}
+static void on_scene_video_update(bapi_scene_t scene, float dt) { (void)scene; (void)dt; }
+static void on_scene_video_render(bapi_scene_t scene) {
+    (void)scene;
+    bapi_draw_text("VIDEO", CENTER_X - 40, 50, 48, COLOR_MAGENTA);
+    
+    if (g_test_video != NULL) {
+        int vw, vh;
+        bapi_video_get_size(g_test_video, &vw, &vh);
+        
+        bapi_video_render_fit(g_test_video, 0, 100, WINDOW_WIDTH, WINDOW_HEIGHT - 250);
+        
+        draw_panel(50, WINDOW_HEIGHT - 150, 300, 100, "Video Info");
+        bapi_draw_text("File: XINGJILOGE.mp4", 70, WINDOW_HEIGHT - 115, 16, COLOR_WHITE);
+        char size_text[64];
+        snprintf(size_text, sizeof(size_text), "Size: %dx%d", vw, vh);
+        bapi_draw_text(size_text, 70, WINDOW_HEIGHT - 90, 16, COLOR_WHITE);
+        bapi_draw_text("Status: Playing", 70, WINDOW_HEIGHT - 65, 16, COLOR_GREEN);
+    } else {
+        bapi_draw_text("Video not loaded!", CENTER_X - 80, CENTER_Y, 24, COLOR_RED);
+    }
+}
+
 static void on_level_load(bapi_level_t level) {
     printf("[Level] Loaded: %s\n", bapi_level_get_name(level));
 }
@@ -171,10 +208,12 @@ static void init_managers(void) {
     bapi_scene_callbacks_t menu_cb = {on_scene_menu_enter, on_scene_menu_exit, on_scene_menu_update, on_scene_menu_render, NULL};
     bapi_scene_callbacks_t game_cb = {on_scene_game_enter, on_scene_game_exit, on_scene_game_update, on_scene_game_render, NULL};
     bapi_scene_callbacks_t settings_cb = {on_scene_settings_enter, on_scene_settings_exit, on_scene_settings_update, on_scene_settings_render, NULL};
+    bapi_scene_callbacks_t video_cb = {on_scene_video_enter, on_scene_video_exit, on_scene_video_update, on_scene_video_render, NULL};
     
     bapi_scene_manager_add_scene(g_scene_manager, bapi_scene_create("menu", menu_cb));
     bapi_scene_manager_add_scene(g_scene_manager, bapi_scene_create("game", game_cb));
     bapi_scene_manager_add_scene(g_scene_manager, bapi_scene_create("settings", settings_cb));
+    bapi_scene_manager_add_scene(g_scene_manager, bapi_scene_create("video", video_cb));
     bapi_scene_manager_switch_scene(g_scene_manager, "menu");
     
     g_level_manager = bapi_level_manager_create();
@@ -191,6 +230,7 @@ static void handle_keyboard(uint8_t key) {
         case '1': bapi_scene_manager_switch_scene(g_scene_manager, "menu"); break;
         case '2': bapi_scene_manager_switch_scene(g_scene_manager, "game"); break;
         case '3': bapi_scene_manager_switch_scene(g_scene_manager, "settings"); break;
+        case '4': bapi_scene_manager_switch_scene(g_scene_manager, "video"); break;
         case 'n': case 'N': bapi_level_manager_next_level(g_level_manager); break;
         case 'p': case 'P': bapi_level_manager_previous_level(g_level_manager); break;
         case ' ':
@@ -237,6 +277,18 @@ int main(int argc, char* argv[]) {
         }
     }
     
+    if (bapi_video_init() != 0) {
+        printf("[ERROR] Video init failed!\n");
+    } else {
+        g_test_video = bapi_video_load("video_example/XINGJILOGE.mp4");
+        if (g_test_video == NULL) {
+            printf("[ERROR] Failed to load test video!\n");
+        } else {
+            bapi_video_set_loop(g_test_video, 1);
+            printf("[INFO] Video initialized. Press 4 to view video scene.\n");
+        }
+    }
+    
     g_demo_button = bapi_create_button(
         CENTER_X - 80, WINDOW_HEIGHT - 160, 160, 50, "Click Me!",
         bapi_color(60, 130, 60, 255), bapi_color(80, 160, 80, 255),
@@ -278,6 +330,7 @@ int main(int argc, char* argv[]) {
         bapi_level_manager_render(g_level_manager);
         
         bapi_sound_update();
+        bapi_video_update();
         
         draw_header();
         draw_help_panel();
@@ -310,6 +363,11 @@ int main(int argc, char* argv[]) {
         bapi_sound_free(g_test_sound);
     }
     bapi_audio_cleanup();
+    if (g_test_video != NULL) {
+        bapi_video_stop(g_test_video);
+        bapi_video_free(g_test_video);
+    }
+    bapi_video_cleanup();
     bapi_mouse_cleanup();
     bapi_engine_quit();
     

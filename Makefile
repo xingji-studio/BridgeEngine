@@ -12,21 +12,22 @@ ifeq ($(OS),Windows_NT)
     VCPKG_INCLUDE_DIR := $(VCPKG_ROOT)/packages/sdl3_x64-windows/include
     VCPKG_INCLUDE_DIR := $(VCPKG_INCLUDE_DIR) $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/include
     VCPKG_INCLUDE_DIR := $(VCPKG_INCLUDE_DIR) $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/include
+    VCPKG_INCLUDE_DIR := $(VCPKG_INCLUDE_DIR) $(VCPKG_ROOT)/packages/ffmpeg_x64-windows/include
 
     VCPKG_LIB_DIR := $(VCPKG_ROOT)/packages/sdl3_x64-windows/lib
     VCPKG_LIB_DIR := $(VCPKG_LIB_DIR) $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/lib
     VCPKG_LIB_DIR := $(VCPKG_LIB_DIR) $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/lib
+    VCPKG_LIB_DIR := $(VCPKG_LIB_DIR) $(VCPKG_ROOT)/packages/ffmpeg_x64-windows/lib
 
     EXE_EXT := .exe
     LIB_EXT := .dll
 
     # Compiler settings
     CC := gcc
-    C_FLAGS := -Wall -Wextra -O2 -g3 -I include -I $(VCPKG_ROOT)/packages/sdl3_x64-windows/include -I $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/include -I $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/include -fPIC -DBAPI_LOG_ENABLED
+    C_FLAGS := -Wall -Wextra -O2 -g3 -I include -I $(VCPKG_ROOT)/packages/sdl3_x64-windows/include -I $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/include -I $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/include -I $(VCPKG_ROOT)/packages/ffmpeg_x64-windows/include -fPIC -DBAPI_LOG_ENABLED
 
-    # Linker settings
-    LD_FLAGS := -L $(VCPKG_ROOT)/packages/sdl3_x64-windows/lib -L $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/lib -L $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/lib
-    LIBS := -lSDL3 -lSDL3_image -lSDL3_ttf -lopengl32 -lgdi32 -luser32 -lkernel32 -lshell32
+    LD_FLAGS := -L $(VCPKG_ROOT)/packages/sdl3_x64-windows/lib -L $(VCPKG_ROOT)/packages/sdl3-image_x64-windows/lib -L $(VCPKG_ROOT)/packages/sdl3-ttf_x64-windows/lib -L $(VCPKG_ROOT)/packages/ffmpeg_x64-windows/lib
+    LIBS := -lSDL3 -lSDL3_image -lSDL3_ttf -lavcodec -lavformat -lavutil -lswscale -lswresample -lopengl32 -lgdi32 -luser32 -lkernel32 -lshell32
 else
     # Linux settings
     # Extension settings
@@ -37,13 +38,12 @@ else
     CC := gcc
     C_FLAGS := -Wall -Wextra -O2 -g3 -I include -fPIC -DBAPI_LOG_ENABLED
 
-    # Linker settings
     LD_FLAGS :=
-    LIBS := -lSDL3 -lSDL3_image -lSDL3_ttf -lGL -lm
+    LIBS := -lSDL3 -lSDL3_image -lSDL3_ttf -lavcodec -lavformat -lavutil -lswscale -lswresample -lGL -lm
 endif
 
 # Source files
-C_SOURCES := engine/master/init.c engine/render/create.c engine/render/draw.c engine/mouse_drawing.c engine/text.c engine/version.c engine/log.c engine/button/button.c engine/scene/scene.c engine/level/level.c engine/xml/xml_loader.c engine/audio/audio.c
+C_SOURCES := engine/master/init.c engine/render/create.c engine/render/draw.c engine/mouse_drawing.c engine/text.c engine/version.c engine/log.c engine/button/button.c engine/scene/scene.c engine/level/level.c engine/xml/xml_loader.c engine/audio/audio.c engine/video/video.c
 LIB_OBJS := $(C_SOURCES:%.c=%.o)
 MAIN_OBJS := $(LIB_OBJS) main.o
 
@@ -60,7 +60,7 @@ lib: $(LIB_OBJS)
 	@$(CC) $(C_FLAGS) $(LD_FLAGS) -shared -fPIC $^ -o libbridgeengine$(LIB_EXT) $(LIBS)
 
 # Build static library
-staticlib: engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o engine/log.o engine/button/button.o engine/scene/scene.o engine/level/level.o engine/xml/xml_loader.o engine/audio/audio.o
+staticlib: engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o engine/log.o engine/button/button.o engine/scene/scene.o engine/level/level.o engine/xml/xml_loader.o engine/audio/audio.o engine/video/video.o
 	@ar cr libbridgeengine.a $^
 xj380_statickib: 
 # Build main executable
@@ -95,9 +95,9 @@ check: $(C_SOURCES:%=%.tidy) $(S_SOURCES:%=%.tidy) $(HEADERS:%=%.tidy)
 clean:
 	@echo Removing $(LIB_OBJS) main.o main$(EXE_EXT) libbridgeengine$(LIB_EXT) libbridgeengine.a text_example$(EXE_EXT)
 ifeq ($(OS),Windows_NT)
-	@del /f /q engine\master\init.o engine\render\create.o engine\render\draw.o engine\mouse_drawing.o engine\text.o engine\version.o main.o main.exe libbridgeengine.so libbridgeengine.dll libbridgeengine.a text_example.exe engine\scene\scene.o engine\level\level.o engine\xml\xml_loader.o engine\log.o engine\button\button.o engine\audio\audio.o 2>nul
+	@del /f /q engine\master\init.o engine\render\create.o engine\render\draw.o engine\mouse_drawing.o engine\text.o engine\version.o main.o main.exe libbridgeengine.so libbridgeengine.dll libbridgeengine.a text_example.exe engine\scene\scene.o engine\level\level.o engine\xml\xml_loader.o engine\log.o engine\button\button.o engine\audio\audio.o engine\video\video.o 2>nul
 else
-	@rm -f engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o main.o main libbridgeengine.so libbridgeengine.dll libbridgeengine.a text_example engine/scene/scene.o engine/level/level.o engine/xml/xml_loader.o engine/log.o engine/button/button.o engine/audio/audio.o
+	@rm -f engine/master/init.o engine/render/create.o engine/render/draw.o engine/mouse_drawing.o engine/text.o engine/version.o main.o main libbridgeengine.so libbridgeengine.dll libbridgeengine.a text_example engine/scene/scene.o engine/level/level.o engine/xml/xml_loader.o engine/log.o engine/button/button.o engine/audio/audio.o engine/video/video.o
 endif
 
 # Install
