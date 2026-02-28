@@ -591,6 +591,120 @@ void bapi_sound_update(void);
 
 - **bapi_sound_update()**: 在主循环中调用，用于处理循环播放等音频更新操作
 
+## 视频系统
+
+视频系统支持加载和播放MP4等格式的视频文件，基于FFmpeg实现完整的视频解码和渲染功能。
+
+### 视频类型
+
+```c
+typedef struct bapi_video_internal* bapi_video_t;
+```
+
+### 视频初始化与清理
+
+```c
+int bapi_video_init(void);
+void bapi_video_cleanup(void);
+```
+
+- **bapi_video_init()**: 初始化视频子系统，返回0表示成功
+- **bapi_video_cleanup()**: 清理视频子系统，释放所有视频资源
+
+### 视频加载与释放
+
+```c
+bapi_video_t bapi_video_load(const char* filepath);
+void bapi_video_free(bapi_video_t video);
+```
+
+- **bapi_video_load()**: 加载视频文件（支持MP4、AVI、MKV等格式），返回视频句柄，失败返回NULL
+- **bapi_video_free()**: 释放视频资源
+
+### 视频播放控制
+
+```c
+int bapi_video_play(bapi_video_t video);
+void bapi_video_pause(bapi_video_t video);
+void bapi_video_stop(bapi_video_t video);
+```
+
+- **bapi_video_play()**: 开始播放视频，返回0表示成功
+- **bapi_video_pause()**: 暂停/恢复视频播放（切换状态）
+- **bapi_video_stop()**: 停止视频播放并重置到开头
+
+### 视频渲染
+
+```c
+void bapi_video_render(bapi_video_t video, int x, int y, int w, int h);
+void bapi_video_render_fit(bapi_video_t video, int area_x, int area_y, int area_w, int area_h);
+void bapi_video_render_center(bapi_video_t video, int window_w, int window_h);
+```
+
+- **bapi_video_render()**: 在指定位置渲染视频（拉伸模式，不保持宽高比）
+  - `x`, `y`: 渲染位置左上角坐标
+  - `w`, `h`: 渲染尺寸
+
+- **bapi_video_render_fit()**: 在指定区域内自适应渲染（保持宽高比，居中显示）
+  - `area_x`, `area_y`: 区域左上角坐标
+  - `area_w`, `area_h`: 区域尺寸
+  - 视频会自动缩放以适应区域，同时保持原始宽高比
+
+- **bapi_video_render_center()**: 在整个窗口内居中渲染（保持宽高比）
+  - `window_w`, `window_h`: 窗口尺寸
+  - 视频会自动缩放以适应窗口，同时保持原始宽高比
+
+### 视频属性设置
+
+```c
+void bapi_video_set_loop(bapi_video_t video, int loop);
+void bapi_video_set_volume(bapi_video_t video, float volume);
+```
+
+- **bapi_video_set_loop()**: 设置视频是否循环播放（1=循环，0=单次）
+- **bapi_video_set_volume()**: 设置视频音量（范围：0.0-1.0）
+
+### 视频状态查询
+
+```c
+int bapi_video_is_playing(bapi_video_t video);
+void bapi_video_get_size(bapi_video_t video, int* w, int* h);
+```
+
+- **bapi_video_is_playing()**: 检查视频是否正在播放，返回1表示播放中，0表示未播放
+- **bapi_video_get_size()**: 获取视频原始尺寸
+
+### 视频更新
+
+```c
+void bapi_video_update(void);
+```
+
+- **bapi_video_update()**: 在主循环中调用，用于更新视频帧
+
+### 视频使用示例
+
+```c
+bapi_video_t video = bapi_video_load("video.mp4");
+if (video != NULL) {
+    bapi_video_set_loop(video, 1);
+    bapi_video_play(video);
+}
+
+while (running) {
+    bapi_video_update();
+    
+    bapi_render_clear();
+    
+    bapi_video_render_fit(video, 0, 0, 800, 600);
+    
+    bapi_render_present();
+}
+
+bapi_video_stop(video);
+bapi_video_free(video);
+```
+
 ## 场景管理
 
 场景管理系统允许您创建和管理多个游戏场景，支持场景切换和生命周期回调。
