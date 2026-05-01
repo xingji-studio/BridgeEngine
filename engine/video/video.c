@@ -20,6 +20,7 @@ struct bapi_video_internal {
     AVStream* video_stream;
     struct SwsContext* sws_ctx;
     struct SwrContext* swr_ctx;
+    AVCodecContext* audio_ctx;
     AVFrame* frame;
     AVFrame* frame_rgb;
     AVPacket* packet;
@@ -59,31 +60,31 @@ static int init_audio_decoder(bapi_video_t video) {
         printf("[VIDEO] Audio codec not found\n");
         return -1;
     }
-    
-    AVCodecContext* audio_ctx = avcodec_alloc_context3(audio_codec);
-    if (!audio_ctx) {
+
+    video->audio_ctx = avcodec_alloc_context3(audio_codec);
+    if (!video->audio_ctx) {
         return -1;
     }
     
-    if (avcodec_parameters_to_context(audio_ctx, video->format_ctx->streams[video->audio_stream_idx]->codecpar) < 0) {
-        avcodec_free_context(&audio_ctx);
+    if (avcodec_parameters_to_context(video->audio_ctx, video->format_ctx->streams[video->audio_stream_idx]->codecpar) < 0) {
+        avcodec_free_context(&video->audio_ctx);
         return -1;
     }
     
-    if (avcodec_open2(audio_ctx, audio_codec, NULL) < 0) {
-        avcodec_free_context(&audio_ctx);
+    if (avcodec_open2(video->audio_ctx, audio_codec, NULL) < 0) {
+        avcodec_free_context(&video->audio_ctx);
         return -1;
     }
     
     video->swr_ctx = swr_alloc();
     if (!video->swr_ctx) {
-        avcodec_free_context(&audio_ctx);
+        avcodec_free_context(&video->audio_ctx);
         return -1;
     }
     
-    av_opt_set_int(video->swr_ctx, "in_channel_layout", audio_ctx->ch_layout.u.mask ? audio_ctx->ch_layout.u.mask : AV_CH_LAYOUT_STEREO, 0);
-    av_opt_set_int(video->swr_ctx, "in_sample_rate", audio_ctx->sample_rate, 0);
-    av_opt_set_sample_fmt(video->swr_ctx, "in_sample_fmt", audio_ctx->sample_fmt, 0);
+    av_opt_set_int(video->swr_ctx, "in_channel_layout", video->audio_ctx->ch_layout.u.mask ? video->audio_ctx->ch_layout.u.mask : AV_CH_LAYOUT_STEREO, 0);
+    av_opt_set_int(video->swr_ctx, "in_sample_rate", video->audio_ctx->sample_rate, 0);
+    av_opt_set_sample_fmt(video->swr_ctx, "in_sample_fmt", video->audio_ctx->sample_fmt, 0);
     
     av_opt_set_int(video->swr_ctx, "out_channel_layout", AV_CH_LAYOUT_STEREO, 0);
     av_opt_set_int(video->swr_ctx, "out_sample_rate", 44100, 0);
@@ -91,7 +92,7 @@ static int init_audio_decoder(bapi_video_t video) {
     
     if (swr_init(video->swr_ctx) < 0) {
         swr_free(&video->swr_ctx);
-        avcodec_free_context(&audio_ctx);
+        avcodec_free_context(&video->audio_ctx);
         return -1;
     }
     
@@ -105,8 +106,7 @@ static int init_audio_decoder(bapi_video_t video) {
     if (video->audio_stream) {
         SDL_ResumeAudioStreamDevice(video->audio_stream);
     }
-    
-    avcodec_free_context(&audio_ctx);
+
     return 0;
 }
 
@@ -215,10 +215,15 @@ bapi_video_t bapi_video_load(const char* filepath) {
         return NULL;
     }
     
-    video->width = video->codec_ctx->width;
-    video->height = video->codec_ctx->height;
+    video->width = video->video_stream->codecpar->width;
+    video->height = video->video_stream->codecpar->height;
     video->time_base = av_q2d(video->video_stream->time_base);
     video->duration = (double)video->format_ctx->duration / AV_TIME_BASE;
+
+    if (video->width <= 0 || video->height <= 0) {
+        printf("[VIDEO] Error: Invalid video dimensions %dx%d\n", video->width, video->height);
+        goto cleanup_error;
+    }
     
     if (video->video_stream->avg_frame_rate.den != 0) {
         video->fps = av_q2d(video->video_stream->avg_frame_rate);
@@ -243,8 +248,8 @@ bapi_video_t bapi_video_load(const char* filepath) {
     av_image_fill_arrays(video->frame_rgb->data, video->frame_rgb->linesize, video->buffer, AV_PIX_FMT_BGRA, video->width, video->height, 1);
     
     video->sws_ctx = sws_getContext(
-        video->codec_ctx->width, video->codec_ctx->height, video->codec_ctx->pix_fmt,
-        video->width, video->height, AV_PIX_FMT_BGRA,
+        video->width, video->height, video->codec_ctx->pix_fmt, // Input
+        video->width, video->height, AV_PIX_FMT_BGRA,          // Output
         SWS_BILINEAR, NULL, NULL, NULL
     );
     if (!video->sws_ctx) {
@@ -330,6 +335,9 @@ void bapi_video_free(bapi_video_t video) {
     }
     if (video->filepath) {
         free(video->filepath);
+    }
+    if (video->audio_ctx) {
+        avcodec_free_context(&video->audio_ctx);
     }
     
     free(video);
