@@ -251,11 +251,6 @@ bapi_video_t bapi_video_load(const char* filepath) {
         video->codec_ctx->pix_fmt = video->video_stream->codecpar->format;
     }
 
-    if (video->codec_ctx->pix_fmt == AV_PIX_FMT_NONE) {
-        printf("[VIDEO] Warning: Pixel format still unknown, trying to decode one frame...\n");
-        video->codec_ctx->pix_fmt = AV_PIX_FMT_YUV420P; 
-    }
-
     video->sws_ctx = sws_getContext(
         video->codec_ctx->width,
         video->codec_ctx->height,
