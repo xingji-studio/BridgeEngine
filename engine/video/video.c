@@ -246,10 +246,23 @@ bapi_video_t bapi_video_load(const char* filepath) {
     }
     
     av_image_fill_arrays(video->frame_rgb->data, video->frame_rgb->linesize, video->buffer, AV_PIX_FMT_BGRA, video->width, video->height, 1);
-    
+
+    if (video->codec_ctx->pix_fmt == AV_PIX_FMT_NONE) {
+        video->codec_ctx->pix_fmt = video->video_stream->codecpar->format;
+    }
+
+    if (video->codec_ctx->pix_fmt == AV_PIX_FMT_NONE) {
+        printf("[VIDEO] Warning: Pixel format still unknown, trying to decode one frame...\n");
+        video->codec_ctx->pix_fmt = AV_PIX_FMT_YUV420P; 
+    }
+
     video->sws_ctx = sws_getContext(
-        video->width, video->height, video->codec_ctx->pix_fmt, // Input
-        video->width, video->height, AV_PIX_FMT_BGRA,          // Output
+        video->codec_ctx->width,
+        video->codec_ctx->height,
+        video->codec_ctx->pix_fmt,
+        video->width,
+        video->height,
+        AV_PIX_FMT_BGRA,
         SWS_BILINEAR, NULL, NULL, NULL
     );
     if (!video->sws_ctx) {
