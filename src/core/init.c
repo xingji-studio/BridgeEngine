@@ -92,7 +92,9 @@ bapi_renderer_t bapi_engine_get_renderer(void)
 
 int bapi_engine_init(const char *title, int width, int height)
 {
-#ifdef USE_BACKEND_XJ380
+#if defined(USE_BACKEND_MINIOS)
+	const plat_interface_t *platform = plat_minios_interface();
+#elif defined(USE_BACKEND_XJ380)
 	const plat_interface_t *platform = plat_xj380_interface();
 #else
 	const plat_interface_t *platform = plat_sdl3_interface();

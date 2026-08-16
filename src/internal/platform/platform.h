@@ -130,6 +130,8 @@ const plat_interface_t *plat_sdl3_interface(void);
 
 const plat_interface_t *plat_xj380_interface(void);
 
+const plat_interface_t *plat_minios_interface(void);
+
 #ifdef __cplusplus
 }
 #endif
