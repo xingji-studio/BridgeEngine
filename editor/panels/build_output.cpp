@@ -2,18 +2,11 @@
 #include "../editor.h"
 #include "../i18n.h"
 
+#include <SDL3/SDL.h>
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#include <shellapi.h>
-#endif
 
 namespace {
 
@@ -89,13 +82,9 @@ bool parse_diagnostic(const std::string &text, Diagnostic &out)
 
 void open_diagnostic(const Diagnostic &diag)
 {
-#ifdef _WIN32
 	// Reaching a specific line would require a real code editor; opening the
-	// file in the system editor is a pragmatic jump target.
-	ShellExecuteA(NULL, "open", diag.file.c_str(), NULL, NULL, SW_SHOWNORMAL);
-#else
-	(void)diag;
-#endif
+	// file with the system handler is a pragmatic jump target.
+	if (!diag.file.empty()) SDL_OpenURL(diag.file.c_str());
 }
 
 } // namespace

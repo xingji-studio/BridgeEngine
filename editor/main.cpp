@@ -95,6 +95,7 @@ static void setup_imgui_fonts(void)
 	ImGuiIO &io = ImGui::GetIO();
 	// Prefer a CJK-capable system font so Chinese UI strings render; fall back
 	// to the embedded default font (Latin only) when none is available.
+#ifdef _WIN32
 	const char *candidates[] = {
 		"C:\\Windows\\Fonts\\msyh.ttc",  // Microsoft YaHei
 		"C:\\Windows\\Fonts\\msyh.ttf",
@@ -102,6 +103,21 @@ static void setup_imgui_fonts(void)
 		"C:\\Windows\\Fonts\\simsun.ttc", // SimSun
 		"C:\\Windows\\Fonts\\msyhl.ttc",
 	};
+#elif defined(__APPLE__)
+	const char *candidates[] = {
+		"/System/Library/Fonts/PingFang.ttc",
+		"/System/Library/Fonts/Hiragino Sans GB.ttc",
+		"/System/Library/Fonts/STHeiti Light.ttc",
+		"/System/Library/Fonts/STHeiti Medium.ttc",
+	};
+#else
+	const char *candidates[] = {
+		"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+		"/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+		"/usr/share/fonts/wenquanyi/wqy-microhei/wqy-microhei.ttc",
+		"/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+	};
+#endif
 	for (const char *path : candidates) {
 		if (io.Fonts->AddFontFromFileTTF(path, 16.0f, nullptr,
 										 io.Fonts->GetGlyphRangesChineseSimplifiedCommon()))

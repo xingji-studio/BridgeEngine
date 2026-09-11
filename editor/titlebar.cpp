@@ -18,6 +18,9 @@ static SDL_Window *g_titlebar_window = nullptr;
 
 static const int kTitleBarHeight = 30;
 static const int kTitleBarHitTest = 6;
+// Three window-control buttons at the right edge of the bar (min/max/close);
+// clicking them must reach ImGui, not start a window drag.
+static const int kTitleButtonsWidth = 3 * 46;
 
 static SDL_HitTestResult SDLCALL titlebar_hit_test(SDL_Window *win, const SDL_Point *area,
 												   void *data)
@@ -42,6 +45,10 @@ static SDL_HitTestResult SDLCALL titlebar_hit_test(SDL_Window *win, const SDL_Po
 	if (bottom) return SDL_HITTEST_RESIZE_BOTTOM;
 	if (left) return SDL_HITTEST_RESIZE_LEFT;
 	if (right) return SDL_HITTEST_RESIZE_RIGHT;
+
+	// The bar itself drags the window (double-click maximize comes for free
+	// from the OS on Windows via HTCAPTION).
+	if (y < kTitleBarHeight && x < w - kTitleButtonsWidth) return SDL_HITTEST_DRAGGABLE;
 	return SDL_HITTEST_NORMAL;
 }
 
@@ -86,21 +93,7 @@ void EditorSetupCustomTitleBar(SDL_Window *window)
 #endif
 }
 
-// WM_NCLBUTTONDOWN/HTCAPTION lets the OS move the window and handle
-// double-click-to-maximize.
-static void begin_window_drag(void)
-{
-#ifdef _WIN32
-	SDL_Window *win = g_titlebar_window;
-	if (!win) return;
-	HWND hwnd = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(win),
-											 SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
-	if (!hwnd) return;
-	ReleaseCapture();
-	SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, 0);
-#endif
-}
-
+// True when the window is currently maximized.
 static bool window_is_maximized(void)
 {
 	SDL_Window *win = g_titlebar_window;
@@ -165,7 +158,6 @@ bool EditorDrawTitleBar(EditorState &state)
 	if (!g_titlebar_window) return false;
 
 	ImGuiViewport *viewport = ImGui::GetMainViewport();
-	ImGuiIO		  &io		= ImGui::GetIO();
 
 	ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x, viewport->Pos.y));
 	ImGui::SetNextWindowSize(ImVec2(viewport->Size.x, kTitleBarHeight));
@@ -194,13 +186,6 @@ bool EditorDrawTitleBar(EditorState &state)
 	const char *title = state.filepath.empty() ? "BridgeEngine Edit"
 											   : state.filepath.c_str();
 	ImGui::TextUnformatted(title);
-
-	ImVec2 bar_min = ImGui::GetWindowPos();
-	ImVec2 bar_max = ImVec2(bar_min.x + ImGui::GetWindowWidth(), bar_min.y + kTitleBarHeight);
-	if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && io.MousePos.y >= bar_min.y &&
-		io.MousePos.y <= bar_min.y + kTitleBarHeight && io.MousePos.x < bar_max.x - btn_w * 3.0f) {
-		begin_window_drag();
-	}
 
 	ImGui::End();
 	ImGui::PopStyleColor();

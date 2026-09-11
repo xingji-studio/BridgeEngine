@@ -5,15 +5,10 @@
 #include "../project_file.h"
 #include "../project_templates.h"
 
+#include <SDL3/SDL.h>
+
 #ifndef BRIDGEENGINE_SOURCE_DIR
 #define BRIDGEENGINE_SOURCE_DIR ""
-#endif
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
 #endif
 
 #include <cstdio>
@@ -266,13 +261,13 @@ static void prefill_new_project(EditorState &state)
 {
 	if (state.new_project_name[0] == '\0')
 		std::strncpy(state.new_project_name, "MyGame", sizeof(state.new_project_name));
-#ifdef _WIN32
 	if (state.new_project_dir[0] == '\0') {
-		char cwd[MAX_PATH] = {};
-		if (GetCurrentDirectoryA(MAX_PATH, cwd))
+		char *cwd = SDL_GetCurrentDirectory();
+		if (cwd) {
 			std::snprintf(state.new_project_dir, sizeof(state.new_project_dir), "%s", cwd);
+			SDL_free(cwd);
+		}
 	}
-#endif
 	if (state.new_project_engine[0] == '\0')
 		std::snprintf(state.new_project_engine, sizeof(state.new_project_engine), "%s",
 					  BRIDGEENGINE_SOURCE_DIR);

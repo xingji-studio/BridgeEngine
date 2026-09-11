@@ -50,11 +50,10 @@ void load_lang_file(const std::string &path, std::unordered_map<std::string, std
 
 std::string locale_path(const char *name)
 {
+	// Forward slashes work for fopen on every platform, including Windows.
 	std::string base = BRIDGEENGINE_SOURCE_DIR;
-	for (char &c : base)
-		if (c == '/') c = '\\';
-	if (!base.empty() && base.back() != '\\') base += '\\';
-	return base + "editor\\locale\\" + name;
+	if (!base.empty() && base.back() != '/') base += '/';
+	return base + "editor/locale/" + name;
 }
 
 } // namespace

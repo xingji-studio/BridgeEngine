@@ -32,11 +32,12 @@ static std::string parent_dir(const std::string &path)
 
 static std::string join_path(const std::string &base, const std::string &relative)
 {
+	// Forward slashes work for fopen on every platform, including Windows.
 	if (relative.empty()) return base;
 	if (base.empty()) return relative;
 	char last = base.back();
 	if (last == '\\' || last == '/') return base + relative;
-	return base + "\\" + relative;
+	return base + "/" + relative;
 }
 
 struct ProjectConfig {
@@ -126,29 +127,23 @@ void EditorSaveRecentProjects(EditorState &state)
 
 // Convert an absolute document path into a path relative to the project root
 // directory (the folder holding the .bep file). Falls back to the absolute
-// path when the document is not under the project root.
+// path when the document is not under the project root. All comparisons and
+// stored paths use forward slashes.
 static std::string normalize_slashes(const std::string &value)
 {
 	std::string out = value;
 	for (char &c : out)
-		if (c == '/') c = '\\';
+		if (c == '\\') c = '/';
 	return out;
 }
 
 static std::string relative_to_root(const std::string &root, const std::string &path)
 {
-	std::string root_dir = root;
-	if (!root_dir.empty() && root_dir.back() != '\\' && root_dir.back() != '/') root_dir += "\\";
-	std::string norm_root = normalize_slashes(root_dir);
+	std::string norm_root = normalize_slashes(root);
+	if (!norm_root.empty() && norm_root.back() != '/') norm_root += '/';
 	std::string norm_path = normalize_slashes(path);
-	if (norm_path.find(norm_root) == 0) {
-		std::string rel = norm_path.substr(norm_root.size());
-		// Normalize backslashes to forward slashes in the stored path.
-		for (char &c : rel)
-			if (c == '\\') c = '/';
-		return rel;
-	}
-	return path;
+	if (norm_path.find(norm_root) == 0) return norm_path.substr(norm_root.size());
+	return norm_path;
 }
 
 // Per-project sessions: one line per project, "project_path|doc1|doc2|...",
@@ -247,7 +242,7 @@ void EditorSyncUiKeyFile(EditorState &state)
 {
 	if (state.project_path.empty()) return;
 	std::string root		 = parent_dir(state.project_path);
-	std::string key_path	 = root + "\\" + ".uixkey";
+	std::string key_path	 = root + "/" + ".uixkey";
 	if (state.ui_key[0]) {
 		FILE *kf = std::fopen(key_path.c_str(), "wb");
 		if (kf) {
@@ -353,7 +348,7 @@ bool EditorOpenProject(EditorState &state, const char *path, std::string &error_
 	// Restore the UI encryption key from <project>/.uixkey so the editor's
 	// save/load and the build stay consistent with the stored key. An absent
 	// file clears the key (project builds unencrypted).
-	std::string key_path = root + "\\" + ".uixkey";
+	std::string key_path = root + "/" + ".uixkey";
 	FILE	   *kf		 = std::fopen(key_path.c_str(), "rb");
 	if (kf) {
 		size_t n = std::fread(state.ui_key, 1, sizeof(state.ui_key) - 1, kf);
