@@ -139,7 +139,7 @@ jobs:
       - name: Configure dependency search paths
         run: |
           SDL_PKG_CONFIG_DIRS=""
-          for formula in $(brew deps --include-build --union --recursive sdl3 sdl3_image sdl3_ttf) sdl3 sdl3_image sdl3_ttf; do
+          for formula in $(brew deps --include-build --union sdl3 sdl3_image sdl3_ttf) sdl3 sdl3_image sdl3_ttf; do
             if formula_prefix="$(brew --prefix "$formula" 2>/dev/null)" && [ -d "$formula_prefix/lib/pkgconfig" ]; then
               SDL_PKG_CONFIG_DIRS="${SDL_PKG_CONFIG_DIRS:+$SDL_PKG_CONFIG_DIRS:}$formula_prefix/lib/pkgconfig"
             fi
