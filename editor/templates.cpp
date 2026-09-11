@@ -8,6 +8,8 @@
 
 #ifdef _WIN32
 #include <io.h>
+#else
+#include <dirent.h>
 #endif
 
 // Template / preset library: save selected components to a UI-XML file and
@@ -97,8 +99,8 @@ std::vector<std::string> EditorListTemplates(const EditorState &state)
 {
 	std::vector<std::string> result;
 	std::string				 dir = EditorTemplateDir(state);
-	std::string				 pattern = dir + "\\*.xml";
 #ifdef _WIN32
+	std::string				 pattern = dir + "\\*.xml";
 	struct _finddata_t fd;
 	intptr_t		   handle = _findfirst(pattern.c_str(), &fd);
 	if (handle == -1) return result;
@@ -106,6 +108,17 @@ std::vector<std::string> EditorListTemplates(const EditorState &state)
 		if (!(fd.attrib & _A_SUBDIR)) result.push_back(std::string(dir) + "\\" + fd.name);
 	} while (_findnext(handle, &fd) == 0);
 	_findclose(handle);
+#else
+	DIR *d = ::opendir(dir.c_str());
+	if (!d) return result;
+	struct dirent *ent;
+	while ((ent = ::readdir(d)) != NULL) {
+		const char *name = ent->d_name;
+		size_t len		= std::strlen(name);
+		if (len < 5 || std::strcmp(name + len - 4, ".xml") != 0) continue;
+		result.push_back(dir + "/" + name);
+	}
+	::closedir(d);
 #endif
 	std::sort(result.begin(), result.end());
 	return result;

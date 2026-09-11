@@ -93,6 +93,8 @@ void open_diagnostic(const Diagnostic &diag)
 	// Reaching a specific line would require a real code editor; opening the
 	// file in the system editor is a pragmatic jump target.
 	ShellExecuteA(NULL, "open", diag.file.c_str(), NULL, NULL, SW_SHOWNORMAL);
+#else
+	(void)diag;
 #endif
 }
 
