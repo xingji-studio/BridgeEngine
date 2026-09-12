@@ -23,6 +23,12 @@ BridgeEngine 保持公开 BAPI 稳定，并将平台相关实现隔离在 `src/i
 
 资源包读取（`src/pack.c`）不经过平台层，直接封装 `thirdparty/rzip/rz_lib.c`（C99，仅依赖标准库），仅桌面端编译；XJ380 使用 `src/pack_stub.c`，所有 `bapi_pack_*` 返回失败并记录一次 warning（rz_lib 依赖 POSIX `sys/stat.h`/`fseeko` 等，XJ380 freestanding 环境不可用）。
 
+桌面资源包在打开时建立两个只读索引：保持归档顺序的节点数组，以及按名字、原始序号排序的查询数组。
+按序号枚举为 O(1)，按名称查询为 O(log n)，打开时额外付出 O(n log n) 的排序和 O(n) 内存。
+排序使用原始序号打破同名条目的平局，保证查找、大小、整文件读取和流式读取仍选择第一个同名条目。
+索引只借用 RZip 节点，不复制文件名或资源数据；关闭时先释放索引，再关闭归档。
+索引分配失败时退回链表查询，资源包仍可正常打开。
+
 ## 媒体加载（两段式）
 
 媒体加载统一为两段式流程：先把字节从磁盘（`bapi_file_read_alloc`，经平台 `io` 能力组）或资源包（`bapi_pack_read_file_alloc` / `bapi_pack_stream_*`）取到内存，再从内存解码。平台 vtable 为此新增两个槽位：`plat_texture_api_t.load_image_mem` 与 `plat_audio_api_t.load_wav_mem`（SDL3 经 `SDL_IOFromConstMem` 实现；XJ380 保持 `NULL` 槽位即不支持）。
@@ -34,6 +40,17 @@ BridgeEngine 保持公开 BAPI 稳定，并将平台相关实现隔离在 `src/i
 ## 文字后端
 
 桌面 SDL3 后端通过 SDL3_ttf 和 BAPI 文字函数加载、绘制字体。运行时优先从 `assets/text/font.ttf` 加载字体；从源码树直接运行示例时，会回退到 `examples/assets/text/font.ttf`，最后兼容旧项目的 `text/font.ttf`。
+
+`src/text.c` 在字体缓存之上维护有界 LRU 文字纹理缓存。键包括字体实例（字号继续按整数像素量化）、
+自持的文字字节和完整 RGBA；位置不进入键，同一标签移动时可复用纹理。命中后只提交纹理绘制，
+省去光栅化、纹理创建和文字测量；`bapi_get_text_size` 也复用已绘制文字的尺寸。
+绘制目标尺寸仍来自文字测量，预算估算使用实际纹理尺寸，避免把布局尺寸误当纹理存储大小。
+
+桌面默认最多缓存 128 条，RGBA 纹理估算大小与文字键合计不超过 4 MiB；XJ380 为 32 条、256 KiB。
+这些预算不含固定缓存元数据、字体、驱动额外开销或一次绘制的临时 surface/texture。
+超预算、无法查询纹理大小或键分配失败时仍直接绘制，只是不保留纹理。
+字体淘汰时释放依赖它的文字纹理；文字清理和引擎退出时先清理缓存，再关闭字体、TTF 与 renderer，
+重新初始化不会复用旧 renderer 的纹理。公开 BAPI 和平台 vtable 无需变更。
 
 XJ380 后端使用 XAPI 内置文字绘制。当前 XJ380 头文件中的 `WSTR` 实际为 `char *`，因此 BAPI 将文字按字节串传给 XAPI，不做 UTF-16 或 `wchar_t` 转换。
 

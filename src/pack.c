@@ -21,16 +21,94 @@
  *   (decompressed) bytes and this wrapper must switch to the decompressor.
  */
 
+typedef struct {
+	rz_file_t *node;
+	int		   ordinal;
+} pack_name_entry_t;
+
 struct bapi_pack_internal {
 	rz_t rz;
+	rz_file_t		 **entries;
+	pack_name_entry_t *names;
+	size_t			   entry_count;
 };
 
 /* rz_read_file()'s count parameter is an int; read large entries in chunks. */
 #define PACK_READ_CHUNK 65536u
 
+static int pack_compare_names(const void *left, const void *right)
+{
+	const pack_name_entry_t *a = left, *b = right;
+	int						 order = strcmp(rz_get_file_name(a->node), rz_get_file_name(b->node));
+	if (order != 0) return order;
+	/* Sorting duplicate names by archive position preserves first-match lookup. */
+	return (a->ordinal > b->ordinal) - (a->ordinal < b->ordinal);
+}
+
+static void pack_build_index(bapi_pack_t pack)
+{
+	if (!pack->rz.index) return;
+	size_t count = 0;
+	for (rz_file_t *node = pack->rz.index->head; node; node = node->next) {
+		if (count == INT_MAX) return;
+		count++;
+	}
+	if (count == 0 || count > SIZE_MAX / sizeof(*pack->entries) ||
+		count > SIZE_MAX / sizeof(*pack->names))
+		return;
+	rz_file_t **entries = malloc(count * sizeof(*entries));
+	if (!entries) return;
+	pack_name_entry_t *names = malloc(count * sizeof(*names));
+	if (!names) {
+		free(entries);
+		return;
+	}
+	size_t i = 0;
+	for (rz_file_t *node = pack->rz.index->head; node; node = node->next, i++) {
+		entries[i] = node;
+		names[i]   = (pack_name_entry_t){node, (int)i};
+	}
+	qsort(names, count, sizeof(*names), pack_compare_names);
+	pack->entries	  = entries;
+	pack->names		  = names;
+	pack->entry_count = count;
+}
+
+static int pack_find_index(bapi_pack_t pack, const char *name)
+{
+	if (!pack || !pack->rz.index || !name) return -1;
+	if (pack->names) {
+		size_t low = 0, high = pack->entry_count;
+		while (low < high) {
+			size_t middle = low + (high - low) / 2;
+			if (strcmp(rz_get_file_name(pack->names[middle].node), name) < 0) {
+				low = middle + 1;
+			} else {
+				high = middle;
+			}
+		}
+		if (low < pack->entry_count && strcmp(rz_get_file_name(pack->names[low].node), name) == 0) {
+			return pack->names[low].ordinal;
+		}
+		return -1;
+	}
+	/* Index allocation is optional: low-memory callers retain the old behavior. */
+	int index = 0;
+	for (rz_file_t *node = pack->rz.index->head; node; node = node->next) {
+		if (strcmp(rz_get_file_name(node), name) == 0) return index;
+		if (index == INT_MAX) break;
+		index++;
+	}
+	return -1;
+}
+
 static rz_file_t *pack_find_node(bapi_pack_t pack, const char *name)
 {
 	if (!pack || !pack->rz.header || !pack->rz.index || !name) return NULL;
+	if (pack->entries) {
+		int index = pack_find_index(pack, name);
+		return index < 0 ? NULL : pack->entries[index];
+	}
 	for (rz_file_t *node = pack->rz.index->head; node != NULL; node = node->next) {
 		if (strcmp(rz_get_file_name(node), name) == 0) {
 			return node;
@@ -75,18 +153,21 @@ bapi_pack_t bapi_pack_open(const char *path)
 		return NULL;
 	}
 
-	bapi_pack_t pack = (bapi_pack_t)malloc(sizeof(struct bapi_pack_internal));
+	bapi_pack_t pack = calloc(1, sizeof(*pack));
 	if (!pack) {
 		rz_close(&rz);
 		return NULL;
 	}
 	pack->rz = rz;
+	pack_build_index(pack);
 	return pack;
 }
 
 void bapi_pack_close(bapi_pack_t pack)
 {
 	if (!pack) return;
+	free(pack->names);
+	free(pack->entries);
 	rz_close(&pack->rz);
 	free(pack);
 }
@@ -101,6 +182,9 @@ int bapi_pack_file_count(bapi_pack_t pack)
 const char *bapi_pack_file_name(bapi_pack_t pack, int index)
 {
 	if (!pack || !pack->rz.index || index < 0) return NULL;
+	if (pack->entries) {
+		return (size_t)index < pack->entry_count ? rz_get_file_name(pack->entries[index]) : NULL;
+	}
 	rz_file_t *node = pack->rz.index->head;
 	for (int i = 0; node != NULL; node = node->next, i++) {
 		if (i == index) {
@@ -112,15 +196,7 @@ const char *bapi_pack_file_name(bapi_pack_t pack, int index)
 
 int bapi_pack_find_file(bapi_pack_t pack, const char *name)
 {
-	if (!pack || !pack->rz.index || !name) return -1;
-	int		   index = 0;
-	rz_file_t *node  = pack->rz.index->head;
-	for (; node != NULL; node = node->next, index++) {
-		if (strcmp(rz_get_file_name(node), name) == 0) {
-			return index;
-		}
-	}
-	return -1;
+	return pack_find_index(pack, name);
 }
 
 int64_t bapi_pack_file_size(bapi_pack_t pack, const char *name)

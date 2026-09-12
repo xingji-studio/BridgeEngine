@@ -618,6 +618,27 @@ if(BRIDGEENGINE_BUILD_TESTS)
 	)
 	add_test(NAME bridgeengine.text_assets COMMAND bridgeengine_text_asset_test)
 
+	add_executable(bridgeengine_text_cache_test
+		tests/text_cache_test.c
+		src/text.c
+		src/core/render_context.c
+		src/platform/platform.c
+	)
+	target_include_directories(bridgeengine_text_cache_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	# Small limits exercise both eviction paths without allocating large textures.
+	target_compile_definitions(bridgeengine_text_cache_test PRIVATE
+		BAPI_TEXT_CACHE_CAPACITY=8 BAPI_TEXT_CACHE_BYTES=4096
+	)
+	if(BRIDGEENGINE_ENABLE_ASAN AND CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+		target_compile_options(bridgeengine_text_cache_test PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+		target_link_options(bridgeengine_text_cache_test PRIVATE -fsanitize=address)
+	endif()
+	add_test(NAME bridgeengine.text_cache COMMAND bridgeengine_text_cache_test)
+
 	add_executable(bridgeengine_log_test
 		tests/log_test.c
 		src/log.c
@@ -657,6 +678,24 @@ if(BRIDGEENGINE_BUILD_TESTS)
 		"${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rzip"
 	)
 	add_test(NAME bridgeengine.pack COMMAND bridgeengine_pack_test "${CMAKE_CURRENT_BINARY_DIR}")
+
+	add_executable(bridgeengine_pack_index_test
+		tests/pack_index_test.c
+		src/pack.c
+		thirdparty/rzip/rz_lib.c
+	)
+	target_include_directories(bridgeengine_pack_index_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rzip"
+	)
+	if(BRIDGEENGINE_ENABLE_ASAN AND CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+		target_compile_options(bridgeengine_pack_index_test PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+		target_link_options(bridgeengine_pack_index_test PRIVATE -fsanitize=address)
+	endif()
+	add_test(NAME bridgeengine.pack_index
+		COMMAND bridgeengine_pack_index_test "${CMAKE_CURRENT_BINARY_DIR}/pack_index.rz"
+	)
 
 	add_executable(bridgeengine_resource_mem_test
 		tests/resource_mem_test.c
