@@ -20,6 +20,32 @@ typedef struct plat_mutex* plat_mutex_t;
 typedef struct plat_surface plat_surface_t;
 typedef struct plat_io plat_io_t;
 
+typedef struct {
+	float x;
+	float y;
+} plat_pointf_t;
+
+typedef struct {
+	float x;
+	float y;
+	float w;
+	float h;
+} plat_rectf_t;
+
+typedef struct {
+	float	 x;
+	float	 y;
+	float	 u;
+	float	 v;
+	uint8_t r;
+	uint8_t g;
+	uint8_t b;
+	uint8_t a;
+} plat_vertex_t;
+
+#define PLAT_FLIP_HORIZONTAL 1
+#define PLAT_FLIP_VERTICAL	 2
+
 
 
 typedef enum {
@@ -30,6 +56,7 @@ typedef enum {
 	PLAT_EVENT_MOUSE_BUTTON_UP,
 	PLAT_EVENT_MOUSE_MOTION,
 	PLAT_EVENT_MOUSE_WHEEL,
+	PLAT_EVENT_WINDOW_RESIZED,
 } plat_event_type_t;
 
 
@@ -58,6 +85,10 @@ typedef struct {
 			float mouse_x;
 			float mouse_y;
 		} wheel;
+		struct {
+			int width;
+			int height;
+		} window;
 	} data;
 } plat_event_t;
 
@@ -105,6 +136,8 @@ typedef struct {
 
 typedef enum {
 	PLAT_PIXELFORMAT_ARGB8888,
+	PLAT_PIXELFORMAT_BC1,
+	PLAT_PIXELFORMAT_BC3,
 } plat_pixel_format_t;
 
 typedef enum {

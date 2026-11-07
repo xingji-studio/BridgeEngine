@@ -1,13 +1,16 @@
 {
     "version": 6,
-    "cmakeMinimumRequired": { "major": 3, "minor": 20 },
+    "cmakeMinimumRequired": {
+        "major": 3,
+        "minor": 20
+    },
     "configurePresets": [
         {
-            "name":          "default",
-            "displayName":   "SDL3 (vcpkg or system)",
-            "description":   "PC build targeting SDL3 + FFmpeg. Use -DCMAKE_TOOLCHAIN_FILE for vcpkg.",
-            "generator":     "Ninja",
-            "binaryDir":     "${sourceDir}/build",
+            "name": "default",
+            "displayName": "SDL3 (vcpkg or system)",
+            "description": "PC build targeting SDL3 + FFmpeg. Use -DCMAKE_TOOLCHAIN_FILE for vcpkg.",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build",
             "cacheVariables": {
                 "BRIDGEENGINE_BUILD_SHARED": "ON",
                 "BRIDGEENGINE_BUILD_STATIC": "ON",
@@ -16,11 +19,11 @@
             }
         },
         {
-            "name":          "release",
-            "displayName":   "Release build",
-            "description":   "Optimised release build with no examples",
-            "generator":     "Ninja",
-            "binaryDir":     "${sourceDir}/build/release",
+            "name": "release",
+            "displayName": "Release build",
+            "description": "Optimised release build with no examples",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/release",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "BRIDGEENGINE_BUILD_SHARED": "ON",
@@ -30,11 +33,11 @@
             }
         },
         {
-            "name":          "static",
-            "displayName":   "Static library build",
-            "description":   "Build BridgeEngine as a static library",
-            "generator":     "Ninja",
-            "binaryDir":     "${sourceDir}/build/static",
+            "name": "static",
+            "displayName": "Static library build",
+            "description": "Build BridgeEngine as a static library",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/static",
             "cacheVariables": {
                 "BRIDGEENGINE_BUILD_SHARED": "OFF",
                 "BRIDGEENGINE_BUILD_STATIC": "ON",
@@ -43,11 +46,11 @@
             }
         },
         {
-            "name":          "xj380",
-            "displayName":   "XJ380 cross build",
-            "description":   "Configure XJ380 targets using the local XJ380 SDK.",
-            "generator":     "Ninja",
-            "binaryDir":     "${sourceDir}/build/xj380",
+            "name": "xj380",
+            "displayName": "XJ380 cross build",
+            "description": "Configure XJ380 targets using the local XJ380 SDK.",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/xj380",
             "cacheVariables": {
                 "BRIDGEENGINE_BUILD_SHARED": "OFF",
                 "BRIDGEENGINE_BUILD_STATIC": "OFF",
@@ -55,24 +58,43 @@
                 "BRIDGEENGINE_BUILD_TESTS": "OFF",
                 "BRIDGEENGINE_BUILD_XJ380": "ON"
             }
+        },
+        {
+            "name": "local",
+            "displayName": "Local SDL deps (no network, no UI Kit)",
+            "description": "Use SDL3_image/SDL3_ttf from .bridgeengine-deps; skip Dear ImGui fetch.",
+            "inherits": "default",
+            "binaryDir": "${sourceDir}/build/local",
+            "cacheVariables": {
+                "BRIDGEENGINE_BUILD_UIKIT": "OFF",
+                "BRIDGEENGINE_FETCH_SDL": "OFF",
+                "CMAKE_PREFIX_PATH": "${sourceDir}/.bridgeengine-deps"
+            },
+            "environment": {
+                "PKG_CONFIG_PATH": "${sourceDir}/.bridgeengine-deps/lib/pkgconfig"
+            }
         }
     ],
     "buildPresets": [
         {
-            "name":          "default",
+            "name": "default",
             "configurePreset": "default"
         },
         {
-            "name":          "release",
+            "name": "release",
             "configurePreset": "release"
         },
         {
-            "name":          "static",
+            "name": "static",
             "configurePreset": "static"
         },
         {
-            "name":          "xj380",
+            "name": "xj380",
             "configurePreset": "xj380"
+        },
+        {
+            "name": "local",
+            "configurePreset": "local"
         }
     ]
 }

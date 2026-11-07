@@ -55,10 +55,24 @@ API 不提供 capability 查询；调用方检查既有返回值即可。
 ### 引擎生命周期
 
 ```c
+typedef enum {
+    BAPI_RENDERER_AUTO   = 0,
+    BAPI_RENDERER_SDL    = 1,
+    BAPI_RENDERER_VULKAN = 2,
+} bapi_renderer_backend_t;
+
 int bapi_engine_init(const char *title, int width, int height);
+int bapi_engine_init_ex(const char *title, int width, int height,
+                        bapi_renderer_backend_t backend);
+bapi_renderer_backend_t bapi_engine_get_renderer_backend(void);
 ```
 创建窗口、renderer 并初始化文字后端。`title` 可为 `NULL`。成功返回 0，任一环节失败返回非零，
 失败时内部已做回滚。重复调用（已初始化）直接返回 0，不重建。
+
+`bapi_engine_init` 等价于 `BAPI_RENDERER_AUTO`：优先尝试 Vulkan（SDL_GPU 的 `"vulkan"` 驱动），
+失败时自动回退 SDL_Renderer。`BAPI_RENDERER_VULKAN` 强制 Vulkan，不可用时初始化失败；
+`BAPI_RENDERER_SDL` 强制 SDL_Renderer。`bapi_engine_get_renderer_backend()` 返回实际生效的后端。
+UI Kit 内部固定使用 `BAPI_RENDERER_SDL`，因为预览面板依赖 SDL_Renderer 原生句柄。
 
 ```c
 void bapi_engine_quit(void);
@@ -99,18 +113,25 @@ int bapi_event_get_motion_y(const bapi_event_t *event);
 int bapi_event_is_mouse_button_down(const bapi_event_t *event);
 int bapi_event_is_mouse_button_up(const bapi_event_t *event);
 int bapi_event_is_mouse_motion(const bapi_event_t *event);
+int bapi_event_get_window_width(const bapi_event_t *event);
+int bapi_event_get_window_height(const bapi_event_t *event);
 ```
-类型断言：`event` 为 `NULL` 或类型不匹配时返回 0。
+类型断言：`event` 为 `NULL` 或类型不匹配时返回 0。窗口尺寸 getter 仅在
+`BAPI_EVENT_WINDOW_RESIZED` 上有意义，`event` 为 `NULL` 时返回 0。
 
 事件类型 `bapi_event_type_t`：`BAPI_EVENT_QUIT`、`BAPI_EVENT_KEY_DOWN`、`BAPI_EVENT_KEY_UP`、
 `BAPI_EVENT_MOUSE_BUTTON_DOWN`、`BAPI_EVENT_MOUSE_BUTTON_UP`、`BAPI_EVENT_MOUSE_MOTION`、
-`BAPI_EVENT_MOUSE_WHEEL`、`BAPI_EVENT_TEXT_INPUT`、`BAPI_EVENT_UNKNOWN`。按键码 0-127 为
-ASCII 码，128 起为 `KEY_*` 特殊键（ESC、F1-F12 等）。`BAPI_BUTTON_LEFT` 为左键（值为 1）。
+`BAPI_EVENT_MOUSE_WHEEL`、`BAPI_EVENT_TEXT_INPUT`、`BAPI_EVENT_WINDOW_RESIZED`、
+`BAPI_EVENT_UNKNOWN`。按键码 0-127 为 ASCII 码，128 起为 `KEY_*` 特殊键（ESC、F1-F12 等）。
+`BAPI_BUTTON_LEFT` 为左键（值为 1）。
 
-`BAPI_EVENT_MOUSE_WHEEL` 携带 `data.wheel { x, y, delta }`：`x`/`y` 为滚轮事件发生时的光标
-坐标（float），`delta` 为滚动量，正值向上（远离用户）、负值向下。`BAPI_EVENT_TEXT_INPUT`
+`BAPI_EVENT_WINDOW_RESIZED` 携带 `data.window { width, height }`，在桌面窗口尺寸变化时产生。
+
+`BAPI_EVENT_MOUSE_WHEEL` 携带 `data.wheel { x, y, mouse_x, mouse_y }`：`x`/`y` 为滚动量，
+正值向上（远离用户）、负值向下；`mouse_x`/`mouse_y` 为事件发生时的光标坐标（float）。
+`BAPI_EVENT_TEXT_INPUT`
 携带 `data.text { text[32] }`：UTF-8 编码的输入文本，最大 31 字节加 NUL。这两个事件不经过
-SDL 平台的按键/鼠标映射，由 UI 系统直接消费，桌面端由编辑器预览面板或输入层构造，XJ380
+SDL 平台的按键/鼠标映射，由 UI 系统直接消费，桌面端由 UI Kit 预览面板或输入层构造，XJ380
 上不可用。
 
 ### 渲染控制
@@ -136,9 +157,65 @@ void bapi_delay(uint32_t ms);
 ```
 睡眠 `ms` 毫秒。用于简单帧率控制。
 
+### 帧循环与时间
+
+```c
+float bapi_frame_begin(void);
+void  bapi_frame_end(void);
+```
+可选的游戏主循环辅助。`bapi_frame_begin()` 在每帧开头调用，更新 delta 与累计时间并返回本帧
+秒数（首帧返回 0，未初始化时返回 0）。`bapi_frame_end()` 提交当前帧，并按 `bapi_set_target_fps()`
+的帧率上限补足睡眠。仍可继续手工调用 `bapi_render_present()`；不要在同帧混用两者。
+
+```c
+float    bapi_get_delta_time(void);
+float    bapi_get_fps(void);
+double   bapi_get_elapsed_time(void);
+uint64_t bapi_get_frame_count(void);
+```
+分别返回上一帧的缩放后 delta、平滑 FPS、游戏累计时间（秒，受时间缩放/暂停影响）和已开始的帧数。
+
+```c
+void bapi_set_target_fps(int fps);
+void bapi_set_time_scale(float scale);
+void bapi_set_frame_paused(int paused);
+int  bapi_frame_is_paused(void);
+```
+`target_fps` 为 0 时不限制，范围钳制到 0-1000。`time_scale` 为 delta 与 elapsed 的倍率
+（0-100，默认 1）。暂停时 delta 为 0、elapsed 不前进，但帧计数和 FPS 继续更新。这些设置在
+`bapi_engine_init()` 之后调用；init 会把帧状态重置为默认值。
+
+```c
+int   bapi_frame_steps(float fixed_delta, int max_steps);
+float bapi_frame_step_alpha(void);
+```
+固定步长辅助：把本帧 delta 累积后返回应执行的固定步数（每帧最多 `max_steps` 步，超出上限时
+丢弃积压以避免死亡螺旋）。`bapi_frame_step_alpha()` 返回剩余时间占一个固定步长的比例，供渲染
+插值使用。每帧只应调用一次 `bapi_frame_steps()`。
+
+### 窗口与显示
+
+```c
+void bapi_set_vsync(int enabled);
+int  bapi_get_vsync(void);
+void bapi_set_fullscreen(int enabled);
+int  bapi_get_fullscreen(void);
+```
+开启/关闭垂直同步与全屏。平台没有对应能力时调用为 no-op，getter 返回当前已生效状态。全屏
+和 vsync 在下次 `bapi_engine_init()` 后重置。
+
+```c
+void bapi_set_logical_size(int width, int height);
+void bapi_get_logical_size(int *width, int *height);
+void bapi_get_window_size(int *width, int *height);
+```
+设置逻辑分辨率（桌面端映射为等比缩放 + 黑边），传 `0,0` 关闭。设置后鼠标事件坐标会自动从
+窗口坐标转换到逻辑坐标。`bapi_get_window_size` 返回实际窗口像素尺寸；输出参数可为 `NULL`。
+
 ### 图元绘制
 
 所有绘制函数需在初始化后调用，坐标以像素为单位，颜色为 `bapi_color_t`。圆和多边形用线段逼近。
+绘制前可通过 `bapi_push_transform()` 设置平移/旋转/缩放，所有图元、纹理和文字都会应用当前变换。
 
 ```c
 void bapi_draw_pixel(float x, float y, bapi_color_t color);
@@ -146,10 +223,12 @@ void bapi_draw_line(float x1, float y1, float x2, float y2, bapi_color_t color);
 void bapi_draw_rect(float x, float y, float w, float h, bapi_color_t color);
 void bapi_fill_rect(float x, float y, float w, float h, bapi_color_t color);
 void bapi_draw_triangle(float x1, float y1, float x2, float y2, float x3, float y3, bapi_color_t color);
+void bapi_fill_triangle(float x1, float y1, float x2, float y2, float x3, float y3, bapi_color_t color);
 void bapi_fill_circle(float cx, float cy, float radius, bapi_color_t color);
 ```
-`fill_rect`/`fill_circle` 填充实心区域；三角形和圆形只有描边版本（`draw_triangle`、
-`draw_circle` 为描边，`fill_circle` 用中心到圆周的三角扇形填充）。
+`fill_rect`/`fill_circle`/`fill_polygon` 填充实心区域。`draw_triangle`/`draw_circle` 为描边，
+`fill_triangle` 为实心三角形；`fill_circle`/`fill_polygon` 使用三角扇形。平台没有
+`render_fill_triangle` 槽位时自动退化为逐扫描线填充，保证结果正确。
 
 ```c
 void bapi_draw_circle(float cx, float cy, float radius, bapi_color_t color);
@@ -162,8 +241,9 @@ void bapi_fill_polygon(float cx, float cy, float radius, int sides, bapi_color_t
 ```c
 void bapi_draw_image(const char *filepath, float x, float y, float w, float h);
 ```
-一次性加载图片并绘制到 `(x,y,w,h)`，绘制完立即释放纹理。不缓存，反复调用会产生重复 IO。需要
-复用纹理时用 `bapi_texture_from_file()` 先加载。`filepath` 为 `NULL` 或加载失败时 no-op。
+按文件路径缓存纹理并绘制到 `(x,y,w,h)`。首次调用加载，后续命中缓存；绘制结束后释放本次引用，
+缓存继续持有纹理。需要完整控制源矩形、旋转、翻转和 tint 时用 `bapi_texture_draw()`。
+`filepath` 为 `NULL` 或加载失败时 no-op。
 
 ### 颜色与计时
 
@@ -177,7 +257,25 @@ bapi_color_t bapi_color_from_hex(uint32_t hex_color);
 ```c
 uint32_t bapi_get_ticks(void);
 ```
-自初始化以来的毫秒数。用于帧耗时测量与计时。
+自初始化以来的毫秒数。用于帧耗时测量与计时；游戏主循环优先使用 `bapi_frame_begin()` 系列。
+
+### 2D 变换栈
+
+```c
+void bapi_reset_transform(void);
+void bapi_push_transform(bapi_vec2_t translation, float rotation, bapi_vec2_t scale);
+void bapi_pop_transform(void);
+void bapi_apply_camera(const bapi_camera_t *camera);
+bapi_vec2_t bapi_transform_point(bapi_vec2_t point);
+bapi_vec2_t bapi_transform_vector(bapi_vec2_t vector);
+float bapi_transform_scale_factor(void);
+```
+初始为 identity。`bapi_push_transform` 依次应用 scale、rotation（弧度）、translation，并与当前
+变换串联；之后所有图元/纹理/文字绘制都使用栈顶变换。`bapi_apply_camera` 等价于压入摄像机的
+world→screen 变换（含平移、旋转、缩放、视口居中）。`bapi_pop_transform` 恢复上一层。
+`bapi_transform_point` 变换坐标，`bapi_transform_vector` 只应用线性部分（不含平移），
+`bapi_transform_scale_factor` 返回面积缩放因子（均匀缩放下等于缩放倍数）。变换栈最多 32 层，
+超出时 push 被忽略。文字只应用位置和缩放，不旋转。
 
 ## 文字与鼠标绘图
 
@@ -240,6 +338,19 @@ bapi_texture_t bapi_texture_load_from_memory(const void *data, size_t size);
 从内存中的图片字节解码纹理，语义同 `bapi_texture_load`。输入缓冲仅在调用期间被读取，不被持有；
 `data` 为 `NULL`、`size` 为 0 或平台不支持内存解码时返回 `NULL`。不经过缓存。
 
+`.bctex` 是块压缩纹理容器（BC1/BC3，magic `BCTX`）。`bapi_texture_load` /
+`bapi_texture_load_from_memory` 会自动识别：Vulkan/SDL_GPU 后端直接把 BC1/BC3 上传为 GPU 压缩
+纹理；SDL_Renderer 或其他不支持压缩格式的后端会 CPU 解码成 RGBA 后上传。构建期用
+`bridgeengine_bctex_pack` 生成：
+
+```bash
+bridgeengine_bctex_pack -f bc1 -o out/assets/game.bctex out/assets/game.bmp
+bridgeengine_bctex_pack -f bc3 -o out/assets/ui.bctex out/assets/ui.bmp
+```
+
+`bc1` 适合无 alpha 的图集页，`bc3` 保留 alpha。编码器是简单的 4x4 端点 + 最近调色板索引，
+适合 UI/图集，不面向高质量法线贴图。
+
 ```c
 void bapi_texture_destroy(bapi_texture_t texture);
 ```
@@ -268,6 +379,91 @@ bapi_texture_t bapi_texture_from_file(const char *filepath, int *out_w, int *out
 void bapi_texture_cache_clear(void);
 ```
 释放缓存中所有纹理引用。只移除缓存引用，不销毁仍被调用方持有的纹理（引用计数保护）。
+
+```c
+bapi_texture_draw_t bapi_texture_draw_default(bapi_rect_t dst);
+void bapi_texture_draw(bapi_texture_t texture, const bapi_texture_draw_t *params);
+```
+一次绘制支持源矩形、目标矩形、归一化 pivot、旋转（弧度）、翻转和 tint。`default` 返回
+pivot=(0.5,0.5)、无翻转、白色 tint 的参数；`src` 的宽或高为 0 表示整张纹理。平台没有
+`render_texture_ex` 槽位时退化为变换后 AABB 的普通纹理绘制，忽略旋转和 tint。
+
+```c
+bapi_atlas_t bapi_atlas_load(const char *manifest_path);
+bapi_atlas_t bapi_atlas_load_with_texture(const char *manifest_path, bapi_texture_t page);
+bapi_atlas_t bapi_atlas_load_from_memory(const void *manifest, size_t size, bapi_texture_t page);
+void         bapi_atlas_destroy(bapi_atlas_t atlas);
+```
+从文本清单加载图集。清单格式：
+
+```text
+BE_ATLAS 1
+page atlas.png
+size 1024 512
+region player 0 0 32 32
+region enemy 32 0 32 32
+```
+
+`page` 路径相对于清单文件；`region` 名字不能含空白。`bapi_atlas_load()` 自己加载 page 纹理并在
+销毁时释放；`bapi_atlas_load_with_texture()` 使用调用方已加载的 page，不取得所有权，调用方需
+保证 page 在 atlas 生命周期内有效。`bapi_atlas_load_from_memory()` 直接解析内存中的清单，适合
+从 `.rz` 包读取清单与 page 后组装图集。加载失败返回 `NULL`，错误文本可用
+`bapi_get_last_error()` 读取。atlas 应在 `bapi_engine_quit()` 之前销毁。
+
+```c
+bapi_texture_t             bapi_atlas_get_texture(bapi_atlas_t atlas);
+int                        bapi_atlas_get_region_count(bapi_atlas_t atlas);
+const bapi_atlas_region_t *bapi_atlas_get_region(bapi_atlas_t atlas, int index);
+const bapi_atlas_region_t *bapi_atlas_find_region(bapi_atlas_t atlas, const char *name);
+```
+查询 page 纹理和 region。name 指针由 atlas 持有，销毁后失效。索引越界返回 `NULL`。
+
+```c
+void bapi_atlas_draw(bapi_atlas_t atlas, const char *name, bapi_rect_t dst, int flip,
+                     bapi_color_t tint);
+```
+按 region 绘制到 `dst`，pivot 居中，支持翻转和 tint。找不到 region 时 no-op 并写入错误文本。
+需要旋转或自定义 pivot 时，用 `bapi_atlas_find_region()` + `bapi_texture_draw()`。
+
+图集页由构建期工具 `bridgeengine_atlas_pack` 生成：
+
+```bash
+bridgeengine_atlas_pack -o out/assets -n game --max-width 2048 \
+    --format png --pack out/assets/game.rz res/hero.png res/enemy.png
+```
+
+输出 `game.png`（或 `--format bmp`）、`game.atlas`，`--pack` 还会把两者以相对名字写入一个
+`.rz` 资源包。`--max-width` 控制页宽，条目之间保留 1px 透明间隔，页尺寸取 2 的幂。当前输出
+PNG 为无损重编码；GPU 块压缩（BC/ETC/ASTC）不在本轮范围。
+
+任意烘焙产物可以用通用打包器写入 `.rz`：
+
+```bash
+bridgeengine_rz_pack -C out/assets -o out/assets/game.rz game.atlas game.png font.ttf
+```
+
+`-C` 先进入资源目录，因此归档内条目名保持相对路径；不传 `-C` 时按当前工作目录解析文件。
+
+从 `.rz` 组装图集的典型流程：
+
+```c
+uint8_t *manifest = bapi_pack_read_file_alloc(pack, "game.atlas", &size);
+bapi_texture_t page = bapi_texture_load_from_pack(pack, "game.bmp");
+bapi_atlas_t atlas = bapi_atlas_load_from_memory(manifest, size, page);
+free(manifest);
+/* atlas 借用 page；page 需保持存活。 */
+```
+
+```c
+void bapi_sprite_batch_begin(void);
+void bapi_sprite_batch_draw(bapi_texture_t texture, const bapi_texture_draw_t *params);
+void bapi_sprite_batch_end(void);
+```
+精灵批处理：`begin()` 后连续调用 `draw()`，`end()` 时把同纹理的四边形合并为一次带纹理几何
+提交。切换纹理或达到 1024 个四边形时自动 flush。适合把同一图集里的 sprite 用 `src` 子矩形
+批量绘制。批处理期间不要插入其他 draw/text 调用，否则会破坏绘制顺序。平台没有
+`render_geometry_textured` 槽位时退化为逐 sprite 的 `bapi_texture_draw()`，语义不变。
+`bapi_sprite_batch_draw()` 在批处理外调用等价于一次普通 `bapi_texture_draw()`。
 
 ### 音频
 
@@ -315,7 +511,48 @@ void bapi_sound_free(bapi_sound_t sound);
 ```
 停止并释放声音及其资源。`sound` 为 `NULL` 时 no-op。
 
-### 视频
+```c
+void  bapi_audio_set_master_volume(float volume);
+float bapi_audio_get_master_volume(void);
+void  bapi_audio_stop_all(void);
+int   bapi_audio_get_active_sound_count(void);
+```
+`master_volume` 钳制在 0.0-1.0，立即作用于所有已创建声音流和流式音乐；默认 1.0。
+`bapi_audio_stop_all` 停止所有播放中的音效，`bapi_audio_get_active_sound_count` 返回当前活动
+音效数量（流式音乐不计入）。
+
+### 流式音乐
+
+```c
+typedef struct bapi_music_internal *bapi_music_t;
+
+bapi_music_t bapi_music_load(const char *filepath);
+bapi_music_t bapi_music_load_from_memory(const void *data, size_t size);
+```
+加载压缩音乐（MP3/OGG/FLAC/WAV 等 FFmpeg 支持的格式）。`load_from_memory` 会复制输入字节，
+调用后即可释放调用方缓冲。需要先成功 `bapi_audio_init()`，否则返回 `NULL`。音乐以 44.1kHz
+双声道 F32 流式喂给音频设备，不会把整首解码进内存。
+
+```c
+void bapi_music_free(bapi_music_t music);
+int  bapi_music_play(bapi_music_t music);
+void bapi_music_pause(bapi_music_t music);
+void bapi_music_resume(bapi_music_t music);
+void bapi_music_stop(bapi_music_t music);
+void bapi_music_set_volume(bapi_music_t music, float volume);
+void bapi_music_set_loop(bapi_music_t music, int loop);
+int  bapi_music_is_playing(bapi_music_t music);
+double bapi_music_get_duration(bapi_music_t music);
+```
+`play` 从开头播放；`pause`/`resume` 暂停与继续；`stop` 停止并回到开头。音量与 master volume
+相乘。`is_playing` 在暂停或播完/停止后返回 0。`get_duration` 返回秒数，未知时为 0。
+`bapi_music_free` 停止并释放音乐。
+
+```c
+void bapi_music_update(void);
+```
+推进解码：在队列低于约 0.75 秒时继续解码并排队。播放期间必须每帧调用，否则音乐会在缓冲区
+耗尽后停顿。循环音乐在 EOF 时自动 seek 回开头。
 
 ```c
 int bapi_video_init(void);
@@ -478,6 +715,220 @@ void bapi_camera_get_view_rect(bapi_camera_t *cam, bapi_rect_t *out_rect);
 坐标转换：世界到屏幕 = 世界坐标减去摄像机位置 → 绕摄像机旋转 → 乘缩放 → 平移视口中心。
 `screen_to_world` 为其逆变换。`*_v` 版本返回向量。`get_view_rect` 输出摄像机可见的世界范围
 矩形（`out_rect` 不得为 `NULL`）。
+
+## 场景实体
+
+```c
+typedef struct bapi_entity_internal *bapi_entity_t;
+typedef void (*bapi_entity_update_fn)(bapi_entity_t entity, float delta_time);
+
+bapi_entity_t bapi_entity_create(const char *name);
+void          bapi_entity_destroy(bapi_entity_t entity);
+```
+轻量场景实体：局部 transform（位置/旋转/缩放）、父子层级、可选 sprite、更新回调。父实体
+拥有子实体，`bapi_entity_destroy()` 会递归销毁整棵子树；`bapi_entity_remove_child()` 只解除
+挂载，不销毁子实体。`name` 超过 63 字节会被截断。
+
+```c
+void        bapi_entity_set_position(bapi_entity_t entity, bapi_vec2_t position);
+bapi_vec2_t bapi_entity_get_position(bapi_entity_t entity);
+void        bapi_entity_set_rotation(bapi_entity_t entity, float radians);
+float       bapi_entity_get_rotation(bapi_entity_t entity);
+void        bapi_entity_set_scale(bapi_entity_t entity, bapi_vec2_t scale);
+bapi_vec2_t bapi_entity_get_scale(bapi_entity_t entity);
+
+bapi_vec2_t bapi_entity_get_world_position(bapi_entity_t entity);
+float       bapi_entity_get_world_rotation(bapi_entity_t entity);
+bapi_vec2_t bapi_entity_get_world_scale(bapi_entity_t entity);
+```
+局部变换顺序为 scale → rotation → translation。world 查询按父链累积；旋转在父级有非均匀缩放时
+是近似值（把父链旋转直接相加），需要精确矩阵时用 `bapi_entity_draw()` 内部的变换栈。
+
+```c
+int           bapi_entity_add_child(bapi_entity_t parent, bapi_entity_t child);
+int           bapi_entity_remove_child(bapi_entity_t parent, bapi_entity_t child);
+bapi_entity_t bapi_entity_get_parent(bapi_entity_t entity);
+int           bapi_entity_get_child_count(bapi_entity_t entity);
+bapi_entity_t bapi_entity_get_child(bapi_entity_t entity, int index);
+bapi_entity_t bapi_entity_find_child(bapi_entity_t entity, const char *name);
+```
+`add_child` 拒绝重复挂载、自引用和成环。`find_child` 只查直接子节点。
+
+```c
+void bapi_entity_set_visible(bapi_entity_t entity, int visible);
+int  bapi_entity_is_visible(bapi_entity_t entity);
+void bapi_entity_set_texture(bapi_entity_t entity, bapi_texture_t texture, bapi_rect_t source);
+void bapi_entity_set_tint(bapi_entity_t entity, bapi_color_t tint);
+void bapi_entity_set_update(bapi_entity_t entity, bapi_entity_update_fn update);
+void bapi_entity_update(bapi_entity_t entity, float delta_time);
+void bapi_entity_draw(bapi_entity_t entity);
+```
+`source` 的宽或高为 0 时使用整张纹理。带 sprite 的实体以自身位置作为 sprite 中心（pivot 0.5,
+0.5）。`draw` 会压入实体变换、绘制 sprite、递归绘制子实体，再弹出变换；可见性对子树生效。
+纹理是借用句柄，实体不负责释放。`update` 先调用自身回调，再递归更新子实体（不受可见性影响）。
+
+## 世界、输入动作与 Tilemap
+
+### 世界运行时
+
+```c
+bapi_world_t  world = bapi_world_create();
+bapi_entity_t player = bapi_world_spawn(world, "player");
+bapi_world_update(world, dt);
+bapi_world_draw(world);
+bapi_world_destroy(world);
+```
+
+- 世界拥有根实体，按加入顺序更新/绘制
+- `bapi_world_despawn()` 会立即从可见列表移除，真正销毁延迟到当前 update 结束
+- `bapi_world_set_paused()` 只跳过 update，不影响 draw
+- `bapi_world_draw()` 使用世界摄像机，绘制后重置变换栈
+
+### 输入动作
+
+```c
+bapi_input_action_clear();
+bapi_input_action_bind("left", 'a');
+bapi_input_action_bind("left", 'j');
+bapi_input_action_bind_mouse("fire", 0);
+
+if (bapi_input_action_pressed("fire")) shoot();
+```
+
+一个动作可绑定多个键/鼠标按钮；`down`/`pressed`/`released` 对所有绑定取 OR。动作名是复制存储的，
+调用方字符串可释放。`bapi_input_action_clear()` 会清空全部绑定。
+
+### Tilemap
+
+```c
+bapi_tilemap_t map = bapi_tilemap_create(40, 24, 32, 32);
+bapi_tilemap_set_tile(map, 4, 5, 2, 1);       /* tile 2, solid */
+bapi_rect_t body = {x, y, 16, 16};
+bapi_tilemap_move_rect(map, &body, (bapi_vec2_t){dx, dy});
+bapi_tilemap_draw(map);
+```
+
+- 行优先网格，`tile_id = -1` 表示空
+- 无 tileset 时用确定性颜色填充；有 tileset 时按 columns 计算源矩形
+- `bapi_tilemap_move_rect()` 先 X 后 Y 解算，返回是否被阻挡；会分块推进避免高速穿墙
+- 网格外视为空，不是墙
+
+### 精灵动画状态机
+
+```c
+bapi_animator_t anim = bapi_animator_create();
+bapi_animator_add_clip(anim, "idle", sheet, &idle_frame, &idle_time, 1, 1);
+bapi_animator_add_clip(anim, "run", sheet, run_frames, run_times, 4, 1);
+bapi_animator_add_transition(anim, "idle", "run", "moving", 1);
+bapi_animator_add_transition(anim, "run", "idle", "moving", 0);
+bapi_animator_play(anim, "idle");
+bapi_animator_set_bool(anim, "moving", 1);
+bapi_animator_update(anim, dt);
+bapi_entity_set_texture(player, bapi_animator_get_texture(anim),
+                        bapi_animator_get_frame(anim));
+```
+
+- clip 复制名称、帧数组和时长；纹理句柄是借用的，不销毁
+- transition 在推进帧之前按插入顺序求值，第一条匹配的 `from + bool 参数` 生效
+- 非循环 clip 到末帧后 `bapi_animator_is_finished()` 返回 1
+
+### 碰撞世界
+
+```c
+bapi_collision_world_t cw = bapi_collision_world_create();
+bapi_collider_t body = bapi_collision_world_add(
+    cw, (bapi_rect_t){x, y, 16, 16}, 1, 1, 1);
+int hit = 0;
+bapi_collision_world_move(cw, body, (bapi_vec2_t){dx, dy}, &hit);
+```
+
+- AABB + layer/mask 过滤；solid 参与移动阻挡
+- `query` 返回总命中数，`out` 最多写 `max` 个
+- `move` 先 X 后 Y，带扫掠夹紧，避免高速穿墙
+- 碰撞过滤：`(A.mask & B.layer) && (B.mask & A.layer)`
+
+### 摄像机控制器
+
+```c
+bapi_camera_controller_t cam =
+    bapi_camera_controller_create(960, 540);
+bapi_camera_controller_set_bounds(cam, (bapi_rect_t){0, 0, map_w, map_h});
+bapi_camera_controller_set_deadzone(cam, 140, 90);
+bapi_camera_controller_set_smoothing(cam, 8.0f);
+bapi_camera_controller_update(cam, dt, player_x, player_y);
+bapi_camera_t view;
+bapi_camera_controller_get_camera(cam, &view);
+```
+
+死区、世界边界夹紧、平滑跟随、`snap`、短促 shake。`update` 的 target 参数优先；传 NaN 时复用上一次目标。
+
+### Tween / easing
+
+```c
+bapi_tween_manager_t tweens = bapi_tween_manager_create();
+bapi_tween_t pulse = bapi_tween_create(
+    tweens, 0.8f, 1.2f, 0.6f, BAPI_EASE_IN_OUT_QUAD, 1);
+bapi_tween_manager_update(tweens, dt);
+float scale = bapi_tween_value(pulse);
+```
+
+8 种 easing，manager 持有 tween，`loop` 自动回绕，非循环到时长后 `finished`。
+
+### 粒子
+
+```c
+bapi_particle_system_t dust = bapi_particle_system_create(256);
+bapi_particle_config_t cfg = {
+    .velocity_min = {-40, -20}, .velocity_max = {40, 10},
+    .color_start = {220, 210, 190, 190}, .color_end = {120, 110, 100, 0},
+    .life_min = 0.25f, .life_max = 0.55f,
+    .size_min = 2, .size_max = 5, .gravity = 60,
+};
+bapi_particle_system_set_config(dust, &cfg);
+bapi_particle_system_emit(dust, 8);
+bapi_particle_system_update(dust, dt);
+bapi_particle_system_draw(dust);
+```
+
+固定容量池，确定性伪随机，颜色按生命周期插值；无纹理，直接画彩色方块。
+
+### 网格寻路
+
+```c
+bapi_path_t path = bapi_path_find(map, sx, sy, gx, gy, 0);
+for (int i = 0; i < bapi_path_count(path); i++) {
+    int x, y;
+    bapi_path_get(path, i, &x, &y);
+}
+bapi_path_destroy(path);
+```
+
+A* over `bapi_tilemap_t`，solid tile 阻挡；路径不含起点、包含终点。4 邻接，`allow_diagonal` 开启 8 邻接。
+
+### 定时器
+
+```c
+static void on_spawn(void *data) { *(int *)data += 1; }
+bapi_timer_manager_t timers = bapi_timer_manager_create();
+bapi_timer_after(timers, 1.5f, on_spawn, &counter);
+bapi_timer_every(timers, 0.5f, on_spawn, &counter);
+bapi_timer_manager_update(timers, dt);
+```
+
+帧驱动的一次性/重复定时器；回调内可以安全 cancel，包括 cancel 自己。
+
+### 项目文件扩展 API
+
+```c
+bapi_project_t project = bapi_project_create("game", engine_dir);
+bapi_project_add_document(project, "ui/menu.xml");
+bapi_project_save(project, "game.bep");
+bapi_project_destroy(project);
+```
+
+- `bapi_project_save()` 使用临时文件 + rename
+- 文档路径必须是项目内相对路径；空路径、绝对路径和 `..` 会被拒绝
+- UI Kit 和 `bcli` 的 `.bep` 读写都走这套共享 API
 
 ## 场景与关卡
 
@@ -837,7 +1288,7 @@ int bapi_ui_save_to_file(bapi_ui_t ui, const char *filepath, const char *key);
   校验和 + 长度 + 密文）；加载时用相同密钥解密并按校验和校验，密钥错误、文件被篡改或明文文件
   但传了密钥都会返回 `NULL`。
 - 这是混淆级保护（密钥在加载程序内部），用于挡住直接改文件的普通玩家，不是强加密。
-- 编辑器通过「File > UI Encryption Key...」设置密钥，设置后保存的文档即为 .uix。
+- UI Kit 通过「File > UI Encryption Key...」设置密钥，设置后保存的文档即为 .uix。
 
 ```c
 int bapi_uix_encrypt_file(const char *src_xml_path, const char *dst_uix_path, const char *key);
@@ -848,7 +1299,7 @@ int bapi_uix_decrypt_file(const char *src_uix_path, const char *dst_xml_path, co
 `bridgeengine_uix_encrypt` 工具把 `ui/*.xml` 加密成 `*.uix` 输出到产物目录，运行时用同一密钥
 `bapi_ui_load_from_file` 加载。两个函数返回 0 成功、-1 失败（密钥为空或文件读写失败）。
 
-编辑器在「File > Save Project」时会把 UI 加密密钥写入项目根目录的 `.uixkey` 文件；项目模板的
+UI Kit 在「File > Save Project」时会把 UI 加密密钥写入项目根目录的 `.uixkey` 文件；项目模板的
 CMakeLists 构建时自动读取它并加密 `ui/*.xml`。没有 `.uixkey`（或命令行未传
 `-DBRIDGEENGINE_UI_KEY=...`）时产物直接复制明文 xml，行为与旧版一致。
 
@@ -1037,6 +1488,15 @@ float bapi_deg_to_rad(float degrees);
 float bapi_rad_to_deg(float radians);
 ```
 钳制、线性插值（`a + (b-a)*t`）、角度换算。`bapi_lerp` 不钳制 `t`。
+
+### 错误上报
+
+```c
+const char *bapi_get_last_error(void);
+void        bapi_clear_last_error(void);
+```
+返回最近一次引擎失败的错误消息（空串表示没有错误）。消息存储在引擎内部静态缓冲，下一次失败
+或 `bapi_clear_last_error()` 时被覆盖。`bapi_engine_init()` 成功会清除旧错误。
 
 ### 日志
 

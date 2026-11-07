@@ -570,6 +570,7 @@ static plat_texture_t xj380_create_texture(plat_renderer_t renderer, plat_pixel_
 										   plat_texture_access_t access, int width, int height)
 {
 	if (!renderer) return NULL;
+	if (format != PLAT_PIXELFORMAT_ARGB8888) return NULL;
 
 	plat_texture_t t = (plat_texture_t)malloc(sizeof(struct plat_texture));
 	if (!t) return NULL;

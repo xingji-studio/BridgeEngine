@@ -413,3 +413,9 @@ bridgeengine_log_example
 bridgeengine_demo
 bridgeengine_demo.exe
 libbridgeengine.*
+
+# Local Kimi Code debug exports
+kimi-debug-session_*.zip
+
+# Local DSH plugin workspace
+dsh-plugins/

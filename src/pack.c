@@ -1,4 +1,5 @@
 #include "BridgeEngine.h"
+#include "internal/bapi_internal.h"
 #include "rz_lib.h"
 #include <limits.h>
 #include <stdint.h>
@@ -150,12 +151,14 @@ bapi_pack_t bapi_pack_open(const char *path)
 
 	rz_t rz = rz_open(path);
 	if (rz.header == NULL) {
+		bapi_set_last_error("resource pack could not be opened: %s", path);
 		return NULL;
 	}
 
 	bapi_pack_t pack = calloc(1, sizeof(*pack));
 	if (!pack) {
 		rz_close(&rz);
+		bapi_set_last_error("out of memory while opening resource pack: %s", path);
 		return NULL;
 	}
 	pack->rz = rz;
@@ -220,7 +223,10 @@ size_t bapi_pack_read_file(bapi_pack_t pack, const char *name, void *buffer, siz
 uint8_t *bapi_pack_read_file_alloc(bapi_pack_t pack, const char *name, size_t *out_size)
 {
 	rz_file_t *node = pack_find_node(pack, name);
-	if (!node) return NULL;
+	if (!node) {
+		bapi_set_last_error("resource pack entry not found: %s", name ? name : "(null)");
+		return NULL;
+	}
 
 	uint64_t size = rz_get_file_comp_size(node);
 	if (size > (uint64_t)SIZE_MAX) return NULL;

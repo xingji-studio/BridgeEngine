@@ -1,0 +1,5 @@
+# BridgeEngine UI Kit - English (en)
+# English UI text is the built-in default (source strings are the keys), so this
+# file only needs entries that differ from the key. Add overrides here as needed.
+
+# no overrides yet

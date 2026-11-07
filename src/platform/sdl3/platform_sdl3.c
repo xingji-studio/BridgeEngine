@@ -1,5 +1,6 @@
 #include "internal/platform/platform.h"
 #include "internal/platform/platform_types.h"
+#include "internal/platform/sdl3_internal.h"
 #include "internal/platform/sdl_keycode.h"
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
@@ -7,18 +8,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-struct plat_window {
-	SDL_Window *window;
-};
-
-struct plat_renderer {
-	SDL_Renderer *renderer;
-};
-
-struct plat_texture {
-	SDL_Texture *texture;
-};
 
 struct plat_font {
 	TTF_Font *font;
@@ -41,9 +30,24 @@ struct plat_io {
 	SDL_IOStream *stream;
 };
 
-struct plat_surface {
-	SDL_Surface *surface;
-};
+/* The engine is single-instance, so one cached renderer is enough to map
+ * window-space mouse events into logical render coordinates. */
+static SDL_Renderer			*g_event_renderer;
+static struct sdlgpu_context *g_event_gpu;
+static int					 g_logical_width;
+static int					 g_logical_height;
+static int					 g_requested_backend = SDL3_BACKEND_AUTO;
+static int					 g_actual_backend	 = SDL3_BACKEND_SDL;
+
+void sdl3_set_requested_backend(int backend)
+{
+	g_requested_backend = backend;
+}
+
+int sdl3_get_actual_backend(void)
+{
+	return g_actual_backend;
+}
 
 #if 0
 static uint8_t sdlkeycode_convert_table[0x80] = {
@@ -224,6 +228,20 @@ static void sdl3_quit(void)
 	SDL_Quit();
 }
 
+static void sdl3_window_to_render_coords(float *x, float *y)
+{
+	if (g_event_gpu != NULL) {
+		sdlgpu_window_to_logical(g_event_gpu, x, y);
+		return;
+	}
+	if (!g_event_renderer || (g_logical_width <= 0 && g_logical_height <= 0)) return;
+	float rx = 0.0f, ry = 0.0f;
+	if (SDL_RenderCoordinatesFromWindow(g_event_renderer, *x, *y, &rx, &ry)) {
+		*x = rx;
+		*y = ry;
+	}
+}
+
 static plat_window_t sdl3_create_window(const char *title, int width, int height)
 {
 	plat_window_t w = malloc(sizeof(struct plat_window));
@@ -233,6 +251,8 @@ static plat_window_t sdl3_create_window(const char *title, int width, int height
 		free(w);
 		return NULL;
 	}
+	SDL_ShowWindow(w->window);
+	SDL_RaiseWindow(w->window);
 	return w;
 }
 
@@ -247,83 +267,258 @@ static void sdl3_destroy_window(plat_window_t window)
 static plat_renderer_t sdl3_create_renderer(plat_window_t window)
 {
 	if (!window) return NULL;
-	plat_renderer_t r = malloc(sizeof(struct plat_renderer));
+	plat_renderer_t r = calloc(1, sizeof(struct plat_renderer));
 	if (!r) return NULL;
+
+	if (g_requested_backend != SDL3_BACKEND_SDL) {
+		r->gpu = sdlgpu_create(window);
+		if (r->gpu != NULL) {
+			g_actual_backend = SDL3_BACKEND_VULKAN;
+			g_event_gpu		 = r->gpu;
+			g_event_renderer = NULL;
+			return r;
+		}
+		if (g_requested_backend == SDL3_BACKEND_VULKAN) {
+			free(r);
+			return NULL;
+		}
+		SDL_Log("Vulkan backend unavailable, falling back to SDL_Renderer: %s", SDL_GetError());
+	}
+
 	r->renderer = SDL_CreateRenderer(window->window, NULL);
 	if (!r->renderer) {
 		free(r);
 		return NULL;
 	}
+	g_actual_backend = SDL3_BACKEND_SDL;
+	g_event_renderer = r->renderer;
+	g_event_gpu		 = NULL;
 	return r;
 }
 
 static void sdl3_destroy_renderer(plat_renderer_t renderer)
 {
 	if (renderer) {
-		SDL_DestroyRenderer(renderer->renderer);
+		if (g_event_renderer == renderer->renderer) g_event_renderer = NULL;
+		if (g_event_gpu == renderer->gpu) g_event_gpu = NULL;
+		if (renderer->gpu != NULL) {
+			sdlgpu_destroy(renderer->gpu);
+		} else if (renderer->renderer != NULL) {
+			SDL_DestroyRenderer(renderer->renderer);
+		}
 		free(renderer);
 	}
+}
+
+static int sdl3_set_render_vsync(plat_renderer_t renderer, int enabled)
+{
+	if (!renderer) return -1;
+	if (renderer->gpu != NULL) return sdlgpu_set_vsync(renderer->gpu, enabled);
+	return SDL_SetRenderVSync(renderer->renderer, enabled ? 1 : 0) ? 0 : -1;
+}
+
+static int sdl3_set_render_logical_size(plat_renderer_t renderer, int width, int height)
+{
+	if (!renderer) return -1;
+	if (renderer->gpu != NULL) return sdlgpu_set_logical_size(renderer->gpu, width, height);
+
+	bool ok;
+	if (width > 0 && height > 0) {
+		ok = SDL_SetRenderLogicalPresentation(renderer->renderer, width, height,
+											  SDL_LOGICAL_PRESENTATION_LETTERBOX);
+	} else {
+		ok = SDL_SetRenderLogicalPresentation(renderer->renderer, 0, 0,
+											  SDL_LOGICAL_PRESENTATION_DISABLED);
+	}
+	if (ok) {
+		g_logical_width	 = width > 0 ? width : 0;
+		g_logical_height = height > 0 ? height : 0;
+	}
+	return ok ? 0 : -1;
 }
 
 static void sdl3_set_render_draw_color(plat_renderer_t renderer, uint8_t r, uint8_t g, uint8_t b,
 									   uint8_t a)
 {
-	if (renderer) SDL_SetRenderDrawColor(renderer->renderer, r, g, b, a);
+	if (!renderer) return;
+	renderer->r = r;
+	renderer->g = g;
+	renderer->b = b;
+	renderer->a = a;
+	if (renderer->gpu != NULL) {
+		sdlgpu_set_color(renderer->gpu, r, g, b, a);
+	} else if (renderer->renderer != NULL) {
+		SDL_SetRenderDrawColor(renderer->renderer, r, g, b, a);
+	}
 }
 
 static void sdl3_set_render_draw_blend_mode(plat_renderer_t renderer, plat_blend_mode_t mode)
 {
 	if (!renderer) return;
-	(void)mode;
-	SDL_SetRenderDrawBlendMode(renderer->renderer, SDL_BLENDMODE_BLEND);
+	renderer->blend_mode = mode;
+	if (renderer->gpu != NULL) {
+		sdlgpu_set_blend(renderer->gpu, mode);
+	} else if (renderer->renderer != NULL) {
+		SDL_SetRenderDrawBlendMode(renderer->renderer, SDL_BLENDMODE_BLEND);
+	}
 }
 
 static void sdl3_render_clear(plat_renderer_t renderer)
 {
-	if (renderer) SDL_RenderClear(renderer->renderer);
+	if (!renderer) return;
+	if (renderer->gpu != NULL) {
+		sdlgpu_render_clear(renderer->gpu);
+	} else if (renderer->renderer != NULL) {
+		SDL_RenderClear(renderer->renderer);
+	}
 }
 
 static void sdl3_render_present(plat_renderer_t renderer)
 {
-	if (renderer) SDL_RenderPresent(renderer->renderer);
+	if (!renderer) return;
+	if (renderer->gpu != NULL) {
+		sdlgpu_render_present(renderer->gpu);
+	} else if (renderer->renderer != NULL) {
+		SDL_RenderPresent(renderer->renderer);
+	}
 }
 
 static void sdl3_render_point(plat_renderer_t renderer, float x, float y)
 {
-	if (renderer) SDL_RenderPoint(renderer->renderer, x, y);
+	if (!renderer) return;
+	if (renderer->gpu != NULL) {
+		sdlgpu_render_point(renderer->gpu, x, y);
+	} else if (renderer->renderer != NULL) {
+		SDL_RenderPoint(renderer->renderer, x, y);
+	}
 }
 
 static void sdl3_render_line(plat_renderer_t renderer, float x1, float y1, float x2, float y2)
 {
-	if (renderer) SDL_RenderLine(renderer->renderer, x1, y1, x2, y2);
+	if (!renderer) return;
+	if (renderer->gpu != NULL) {
+		sdlgpu_render_line(renderer->gpu, x1, y1, x2, y2);
+	} else if (renderer->renderer != NULL) {
+		SDL_RenderLine(renderer->renderer, x1, y1, x2, y2);
+	}
 }
 
 static void sdl3_render_rect(plat_renderer_t renderer, float x, float y, float w, float h)
 {
 	if (!renderer) return;
-	SDL_FRect rect = {x, y, w, h};
-	SDL_RenderRect(renderer->renderer, &rect);
+	if (renderer->gpu != NULL) {
+		sdlgpu_render_rect(renderer->gpu, x, y, w, h);
+	} else if (renderer->renderer != NULL) {
+		SDL_FRect rect = {x, y, w, h};
+		SDL_RenderRect(renderer->renderer, &rect);
+	}
 }
 
 static void sdl3_render_fill_rect(plat_renderer_t renderer, float x, float y, float w, float h)
 {
 	if (!renderer) return;
-	SDL_FRect rect = {x, y, w, h};
-	SDL_RenderFillRect(renderer->renderer, &rect);
+	if (renderer->gpu != NULL) {
+		sdlgpu_render_fill_rect(renderer->gpu, x, y, w, h);
+	} else if (renderer->renderer != NULL) {
+		SDL_FRect rect = {x, y, w, h};
+		SDL_RenderFillRect(renderer->renderer, &rect);
+	}
 }
 
 static void sdl3_render_texture(plat_renderer_t renderer, plat_texture_t texture, float x, float y,
 								float w, float h)
 {
 	if (!renderer || !texture) return;
-	SDL_FRect dest = {x, y, w, h};
-	SDL_RenderTexture(renderer->renderer, texture->texture, NULL, &dest);
+	if (renderer->gpu != NULL) {
+		sdlgpu_render_texture(renderer->gpu, texture, x, y, w, h);
+	} else if (renderer->renderer != NULL) {
+		SDL_FRect dest = {x, y, w, h};
+		SDL_RenderTexture(renderer->renderer, texture->texture, NULL, &dest);
+	}
+}
+
+static void sdl3_render_fill_triangle(plat_renderer_t renderer, float x1, float y1, float x2,
+									  float y2, float x3, float y3, uint8_t r, uint8_t g, uint8_t b,
+									  uint8_t a)
+{
+	if (!renderer) return;
+	if (renderer->gpu != NULL) {
+		sdlgpu_render_fill_triangle(renderer->gpu, x1, y1, x2, y2, x3, y3, r, g, b, a);
+	} else if (renderer->renderer != NULL) {
+		SDL_Vertex vertices[3] = {
+			{{x1, y1}, {r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f}, {0.0f, 0.0f}},
+			{{x2, y2}, {r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f}, {0.0f, 0.0f}},
+			{{x3, y3}, {r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f}, {0.0f, 0.0f}},
+		};
+		SDL_RenderGeometry(renderer->renderer, NULL, vertices, 3, NULL, 0);
+	}
+}
+
+static void sdl3_render_texture_ex(plat_renderer_t renderer, plat_texture_t texture,
+								   const plat_rectf_t *src, const plat_rectf_t *dst,
+								   const plat_pointf_t *pivot, float rotation, int flip, uint8_t r,
+								   uint8_t g, uint8_t b, uint8_t a)
+{
+	if (!renderer || !texture || !dst) return;
+	if (renderer->gpu != NULL) {
+		sdlgpu_render_texture_ex(renderer->gpu, texture, src, dst, pivot, rotation, flip, r, g, b,
+								 a);
+		return;
+	}
+	if (renderer->renderer == NULL) return;
+
+	SDL_FRect	 src_rect  = {src ? src->x : 0.0f, src ? src->y : 0.0f, src ? src->w : 0.0f,
+							  src ? src->h : 0.0f};
+	SDL_FRect	 dst_rect  = {dst->x, dst->y, dst->w, dst->h};
+	SDL_FPoint	 center	   = {pivot ? pivot->x : dst->w * 0.5f, pivot ? pivot->y : dst->h * 0.5f};
+	SDL_FlipMode flip_mode = (SDL_FlipMode)flip;
+
+	SDL_SetTextureColorMod(texture->texture, r, g, b);
+	SDL_SetTextureAlphaMod(texture->texture, a);
+	SDL_RenderTextureRotated(renderer->renderer, texture->texture, src ? &src_rect : NULL,
+							 &dst_rect, (double)(rotation * 57.29577951308232f),
+							 pivot ? &center : NULL, flip_mode);
+	SDL_SetTextureColorMod(texture->texture, 255, 255, 255);
+	SDL_SetTextureAlphaMod(texture->texture, 255);
+}
+
+static void sdl3_render_geometry_textured(plat_renderer_t renderer, plat_texture_t texture,
+										  const plat_vertex_t *vertices, int vertex_count,
+										  const int *indices, int index_count)
+{
+	if (!renderer || !texture || !vertices || vertex_count <= 0) return;
+	if (renderer->gpu != NULL) {
+		sdlgpu_render_geometry_textured(renderer->gpu, texture, vertices, vertex_count, indices,
+										index_count);
+		return;
+	}
+	if (renderer->renderer == NULL) return;
+
+	SDL_Vertex *sdl_vertices = malloc(sizeof(SDL_Vertex) * (size_t)vertex_count);
+	if (!sdl_vertices) return;
+
+	for (int i = 0; i < vertex_count; i++) {
+		sdl_vertices[i].position.x = vertices[i].x;
+		sdl_vertices[i].position.y = vertices[i].y;
+		sdl_vertices[i].color.r	   = vertices[i].r / 255.0f;
+		sdl_vertices[i].color.g	   = vertices[i].g / 255.0f;
+		sdl_vertices[i].color.b	   = vertices[i].b / 255.0f;
+		sdl_vertices[i].color.a	   = vertices[i].a / 255.0f;
+		sdl_vertices[i].tex_coord.x = vertices[i].u;
+		sdl_vertices[i].tex_coord.y = vertices[i].v;
+	}
+
+	SDL_RenderGeometry(renderer->renderer, texture->texture, sdl_vertices, vertex_count, indices,
+					   index_count);
+	free(sdl_vertices);
 }
 
 static plat_texture_t sdl3_create_texture_from_surface(plat_renderer_t renderer,
 													   plat_surface_t *surface)
 {
 	if (!renderer || !surface) return NULL;
+	if (renderer->gpu != NULL) return sdlgpu_create_texture_from_surface(renderer->gpu, surface);
+
 	plat_texture_t t = malloc(sizeof(struct plat_texture));
 	if (!t) return NULL;
 	t->texture = SDL_CreateTextureFromSurface(renderer->renderer, surface->surface);
@@ -331,12 +526,43 @@ static plat_texture_t sdl3_create_texture_from_surface(plat_renderer_t renderer,
 		free(t);
 		return NULL;
 	}
+	float texture_width = 0, texture_height = 0;
+	SDL_GetTextureSize(t->texture, &texture_width, &texture_height);
+	t->width  = (int)texture_width;
+	t->height = (int)texture_height;
 	return t;
 }
 
 static void *sdl3_get_native_window(plat_window_t window)
 {
 	return window ? window->window : NULL;
+}
+
+static int sdl3_set_window_fullscreen(plat_window_t window, int enabled)
+{
+	if (!window) return -1;
+	return SDL_SetWindowFullscreen(window->window, enabled != 0) ? 0 : -1;
+}
+
+static int sdl3_get_window_size(plat_window_t window, int *width, int *height)
+{
+	if (!window) return -1;
+	int w = 0, h = 0;
+	if (!SDL_GetWindowSize(window->window, &w, &h)) return -1;
+	if (width) *width = w;
+	if (height) *height = h;
+	return 0;
+}
+
+static int sdl3_platform_set_backend(int backend)
+{
+	sdl3_set_requested_backend(backend);
+	return 0;
+}
+
+static int sdl3_platform_get_backend(void)
+{
+	return sdl3_get_actual_backend();
 }
 
 static void *sdl3_get_native_renderer(plat_renderer_t renderer)
@@ -348,8 +574,13 @@ static plat_texture_t sdl3_create_texture(plat_renderer_t renderer, plat_pixel_f
 										  plat_texture_access_t access, int width, int height)
 {
 	if (!renderer) return NULL;
+	if (renderer->gpu != NULL) {
+		return sdlgpu_create_texture(renderer->gpu, format, access, width, height);
+	}
+
 	SDL_PixelFormat sdl_fmt = SDL_PIXELFORMAT_ARGB8888;
 	if (format == PLAT_PIXELFORMAT_ARGB8888) sdl_fmt = SDL_PIXELFORMAT_ARGB8888;
+	else return NULL;
 
 	SDL_TextureAccess sdl_access = SDL_TEXTUREACCESS_STREAMING;
 	if (access == PLAT_TEXTUREACCESS_STREAMING) sdl_access = SDL_TEXTUREACCESS_STREAMING;
@@ -361,18 +592,26 @@ static plat_texture_t sdl3_create_texture(plat_renderer_t renderer, plat_pixel_f
 		free(t);
 		return NULL;
 	}
+	t->width  = width;
+	t->height = height;
 	return t;
 }
 
 static int sdl3_update_texture(plat_texture_t texture, const void *pixels, int pitch)
 {
 	if (!texture) return -1;
+	if (texture->gpu != NULL) return sdlgpu_update_texture(texture, pixels, pitch);
 	return SDL_UpdateTexture(texture->texture, NULL, pixels, pitch) ? 0 : -1;
 }
 
 static int sdl3_get_texture_size(plat_texture_t texture, int *width, int *height)
 {
 	if (!texture || !width || !height) return -1;
+	if (texture->gpu != NULL) {
+		*width	= texture->width;
+		*height = texture->height;
+		return 0;
+	}
 	float texture_width	 = 0;
 	float texture_height = 0;
 	if (!SDL_GetTextureSize(texture->texture, &texture_width, &texture_height)) return -1;
@@ -384,7 +623,11 @@ static int sdl3_get_texture_size(plat_texture_t texture, int *width, int *height
 static void sdl3_destroy_texture(plat_texture_t texture)
 {
 	if (texture) {
-		SDL_DestroyTexture(texture->texture);
+		if (texture->gpu != NULL) {
+			sdlgpu_destroy_texture(texture);
+		} else if (texture->texture != NULL) {
+			SDL_DestroyTexture(texture->texture);
+		}
 		free(texture);
 	}
 }
@@ -446,29 +689,50 @@ static int sdl3_poll_event(plat_event_t *event)
 			event->type			= PLAT_EVENT_KEY_UP;
 			event->data.key.key = convert_sdl_keycode(sdl_event.key.key);
 			return 1;
-		case SDL_EVENT_MOUSE_BUTTON_DOWN:
+		case SDL_EVENT_MOUSE_BUTTON_DOWN: {
+			float x = sdl_event.button.x;
+			float y = sdl_event.button.y;
+			sdl3_window_to_render_coords(&x, &y);
 			event->type				  = PLAT_EVENT_MOUSE_BUTTON_DOWN;
-			event->data.button.x	  = sdl_event.button.x;
-			event->data.button.y	  = sdl_event.button.y;
+			event->data.button.x	  = x;
+			event->data.button.y	  = y;
 			event->data.button.button = sdl_event.button.button;
 			return 1;
-		case SDL_EVENT_MOUSE_BUTTON_UP:
+		}
+		case SDL_EVENT_MOUSE_BUTTON_UP: {
+			float x = sdl_event.button.x;
+			float y = sdl_event.button.y;
+			sdl3_window_to_render_coords(&x, &y);
 			event->type				  = PLAT_EVENT_MOUSE_BUTTON_UP;
-			event->data.button.x	  = sdl_event.button.x;
-			event->data.button.y	  = sdl_event.button.y;
+			event->data.button.x	  = x;
+			event->data.button.y	  = y;
 			event->data.button.button = sdl_event.button.button;
 			return 1;
-		case SDL_EVENT_MOUSE_MOTION:
+		}
+		case SDL_EVENT_MOUSE_MOTION: {
+			float x = sdl_event.motion.x;
+			float y = sdl_event.motion.y;
+			sdl3_window_to_render_coords(&x, &y);
 			event->type			 = PLAT_EVENT_MOUSE_MOTION;
-			event->data.motion.x = sdl_event.motion.x;
-			event->data.motion.y = sdl_event.motion.y;
+			event->data.motion.x = x;
+			event->data.motion.y = y;
 			return 1;
-		case SDL_EVENT_MOUSE_WHEEL:
-			event->type				= PLAT_EVENT_MOUSE_WHEEL;
-			event->data.wheel.x		= sdl_event.wheel.x;
-			event->data.wheel.y		= sdl_event.wheel.y;
-			event->data.wheel.mouse_x = sdl_event.wheel.mouse_x;
-			event->data.wheel.mouse_y = sdl_event.wheel.mouse_y;
+		}
+		case SDL_EVENT_MOUSE_WHEEL: {
+			float mx = sdl_event.wheel.mouse_x;
+			float my = sdl_event.wheel.mouse_y;
+			sdl3_window_to_render_coords(&mx, &my);
+			event->type				  = PLAT_EVENT_MOUSE_WHEEL;
+			event->data.wheel.x		  = sdl_event.wheel.x;
+			event->data.wheel.y		  = sdl_event.wheel.y;
+			event->data.wheel.mouse_x = mx;
+			event->data.wheel.mouse_y = my;
+			return 1;
+		}
+		case SDL_EVENT_WINDOW_RESIZED:
+			event->type				  = PLAT_EVENT_WINDOW_RESIZED;
+			event->data.window.width  = sdl_event.window.data1;
+			event->data.window.height = sdl_event.window.data2;
 			return 1;
 		default:
 
@@ -480,7 +744,9 @@ static int sdl3_poll_event(plat_event_t *event)
 
 static void sdl3_get_mouse_state(float *x, float *y)
 {
+	if (!x || !y) return;
 	SDL_GetMouseState(x, y);
+	sdl3_window_to_render_coords(x, y);
 }
 
 static int sdl3_init_ttf(void)
@@ -654,6 +920,11 @@ static void sdl3_resume_audio_stream_device(plat_audio_stream_t stream)
 	if (stream) SDL_ResumeAudioStreamDevice(stream->stream);
 }
 
+static void sdl3_pause_audio_stream_device(plat_audio_stream_t stream)
+{
+	if (stream) SDL_PauseAudioStreamDevice(stream->stream);
+}
+
 static int sdl3_wav_from_io(SDL_IOStream *io, plat_audio_spec_t *spec, uint8_t **buffer,
 							uint32_t *length)
 {
@@ -777,8 +1048,10 @@ static int64_t sdl3_io_seek(plat_io_t *io, int64_t offset, int whence)
 {
 	if (!io) return -1;
 	SDL_IOWhence sdl_whence = SDL_IO_SEEK_SET;
-	if (whence == SEEK_CUR) sdl_whence = SDL_IO_SEEK_CUR;
-	else if (whence == SEEK_END) sdl_whence = SDL_IO_SEEK_END;
+	if (whence == SEEK_CUR)
+		sdl_whence = SDL_IO_SEEK_CUR;
+	else if (whence == SEEK_END)
+		sdl_whence = SDL_IO_SEEK_END;
 	return SDL_SeekIO(io->stream, offset, sdl_whence);
 }
 
@@ -802,6 +1075,11 @@ static void sdl3_delay(uint32_t ms)
 static uint32_t sdl3_get_ticks(void)
 {
 	return (uint32_t)SDL_GetTicks();
+}
+
+static uint64_t sdl3_get_time_ns(void)
+{
+	return SDL_GetTicksNS();
 }
 
 static void sdl3_log_debug(const char *fmt, ...)
@@ -846,12 +1124,15 @@ static void sdl3_log_critical(const char *fmt, ...)
 
 static const plat_interface_t sdl3_interface = {
 	.capabilities = PLAT_CAPABILITY_AUDIO | PLAT_CAPABILITY_VIDEO,
+	.set_renderer_backend = sdl3_platform_set_backend,
+	.get_renderer_backend = sdl3_platform_get_backend,
 	.core =
 		{
 			.init		  = sdl3_init,
 			.quit		  = sdl3_quit,
 			.delay		  = sdl3_delay,
 			.get_ticks	  = sdl3_get_ticks,
+			.get_time_ns  = sdl3_get_time_ns,
 			.log_debug	  = sdl3_log_debug,
 			.log_info	  = sdl3_log_info,
 			.log_warn	  = sdl3_log_warn,
@@ -860,11 +1141,13 @@ static const plat_interface_t sdl3_interface = {
 		},
 	.window =
 		{
-			.create_window	 = sdl3_create_window,
-			.destroy_window	 = sdl3_destroy_window,
-			.poll_event		 = sdl3_poll_event,
-			.get_mouse_state = sdl3_get_mouse_state,
-			.get_native_window = sdl3_get_native_window,
+			.create_window		   = sdl3_create_window,
+			.destroy_window		   = sdl3_destroy_window,
+			.poll_event			   = sdl3_poll_event,
+			.get_mouse_state	   = sdl3_get_mouse_state,
+			.get_native_window	   = sdl3_get_native_window,
+			.set_window_fullscreen = sdl3_set_window_fullscreen,
+			.get_window_size	   = sdl3_get_window_size,
 		},
 	.renderer =
 		{
@@ -880,6 +1163,11 @@ static const plat_interface_t sdl3_interface = {
 			.render_fill_rect			= sdl3_render_fill_rect,
 			.render_texture				= sdl3_render_texture,
 			.get_native_renderer		= sdl3_get_native_renderer,
+			.set_render_vsync			= sdl3_set_render_vsync,
+			.set_render_logical_size	= sdl3_set_render_logical_size,
+			.render_fill_triangle		= sdl3_render_fill_triangle,
+			.render_texture_ex			= sdl3_render_texture_ex,
+			.render_geometry_textured	= sdl3_render_geometry_textured,
 		},
 	.texture =
 		{
@@ -915,6 +1203,7 @@ static const plat_interface_t sdl3_interface = {
 			.clear_audio_stream			= sdl3_clear_audio_stream,
 			.set_audio_stream_gain		= sdl3_set_audio_stream_gain,
 			.resume_audio_stream_device = sdl3_resume_audio_stream_device,
+			.pause_audio_stream_device	= sdl3_pause_audio_stream_device,
 			.load_wav					= sdl3_load_wav,
 			.load_wav_mem				= sdl3_load_wav_mem,
 			.mem_free					= sdl3_mem_free,

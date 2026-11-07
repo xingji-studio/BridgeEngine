@@ -11,17 +11,18 @@ project(__PROJECT_NAME__ LANGUAGES C)
 #      再配置本工程时加 -DCMAKE_PREFIX_PATH=<前缀>。BRIDGEENGINE_SOURCE_DIR
 #      为空时走 find_package。
 # ---------------------------------------------------------------------------
-set(BRIDGEENGINE_SOURCE_DIR "__ENGINE_DIR__")
+set(BRIDGEENGINE_SOURCE_DIR "__ENGINE_DIR__" CACHE PATH "BridgeEngine source directory")
 if(NOT BRIDGEENGINE_SOURCE_DIR)
 	find_package(BridgeEngine CONFIG REQUIRED)
 	set(BRIDGEENGINE_LINK_TARGET BridgeEngine::bridgeengine_static)
 else()
 	# Only the engine static library is needed here; keep its optional
-	# subprojects (editor, examples, tests, shared lib, XJ380) out of the build.
+	# subprojects (UI Kit, examples, tests, shared lib, XJ380) out of the build.
 	set(BRIDGEENGINE_BUILD_SHARED OFF CACHE BOOL "" FORCE)
 	set(BRIDGEENGINE_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 	set(BRIDGEENGINE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-	set(BRIDGEENGINE_BUILD_EDITOR OFF CACHE BOOL "" FORCE)
+	set(BRIDGEENGINE_BUILD_UIKIT OFF CACHE BOOL "" FORCE)
+	set(BRIDGEENGINE_BUILD_CLI OFF CACHE BOOL "" FORCE)
 	set(BRIDGEENGINE_BUILD_XJ380 OFF CACHE BOOL "" FORCE)
 	add_subdirectory(${BRIDGEENGINE_SOURCE_DIR} bridgeengine)
 	set(BRIDGEENGINE_LINK_TARGET bridgeengine_static)

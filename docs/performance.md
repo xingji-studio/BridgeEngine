@@ -35,7 +35,7 @@ cmake -S . -B build/check -G Ninja \
   -DBRIDGEENGINE_BUILD_SHARED=OFF \
   -DBRIDGEENGINE_BUILD_STATIC=OFF \
   -DBRIDGEENGINE_BUILD_EXAMPLES=OFF \
-  -DBRIDGEENGINE_BUILD_EDITOR=OFF \
+  -DBRIDGEENGINE_BUILD_UIKIT=OFF \
   -DBRIDGEENGINE_BUILD_XJ380=OFF \
   -DBRIDGEENGINE_BUILD_TESTS=ON
 cmake --build build/check
@@ -57,12 +57,12 @@ build/check/bridgeengine_pack_index_test build/check/bench.rz --benchmark
 ## 验证范围
 
 - 独立 CTest：27/27 通过，覆盖原有测试与新增文字缓存、资源包索引测试。
-- AddressSanitizer + UndefinedBehaviorSanitizer：27/27 通过。
+- AddressSanitizer + UndefinedBehaviorSanitizer：52/52 通过。
   当前执行环境不允许 LeakSanitizer 读取进程信息，运行时使用 `ASAN_OPTIONS=detect_leaks=0`；
   不将此结果计为通过泄漏检测。文字测试另以分配/释放计数和真实运行时退出顺序检查资源清理。
 - 新增文字测试覆盖位置、RGBA、UTF-8、调用方修改字符串、字号量化、两类预算淘汰、
   多条目淘汰、超大纹理、失败重试、字体淘汰、清理幂等和引擎重启。
 - 新增资源包测试用带 CRC 的 4,097 条目归档验证原始序号、查找边界、首个同名条目、
   整文件和流式读取。首尾同名条目的数据不同，防止排序后误读。
-- 完整桌面构建已尝试，停在缺少 X11/Wayland 开发依赖；SDL/FFmpeg 后端集成、
-  编辑器画面、真实 GPU 帧率和 XJ380 交叉编译尚未在本环境验证。
+- 桌面库、SDL/FFmpeg 后端、UI Kit、CLI 与 vertical slice 已在 SDL offscreen + 软件 Vulkan
+  （lavapipe）下验证；真实 GPU 帧率和 XJ380 交叉编译不在本环境验证。

@@ -1,4 +1,5 @@
 #include "BridgeEngine.h"
+#include "internal/bapi_internal.h"
 #include "internal/platform/platform.h"
 #include <stdint.h>
 #include <stdlib.h>
@@ -12,7 +13,10 @@ bapi_file_t bapi_file_open(const char *path)
 	const plat_interface_t *plat = plat_get();
 	if (!plat || !path) return NULL;
 	plat_io_t *io = plat->io.open_read(path);
-	if (!io) return NULL;
+	if (!io) {
+		bapi_set_last_error("file could not be opened: %s", path);
+		return NULL;
+	}
 	bapi_file_t file = (bapi_file_t)malloc(sizeof(struct bapi_file_internal));
 	if (!file) {
 		plat->io.close(io);
@@ -65,7 +69,10 @@ uint8_t *bapi_file_read_alloc(const char *path, size_t *out_size)
 	if (!plat || !path || !plat->io.open_read || !plat->io.read) return NULL;
 
 	plat_io_t *io = plat->io.open_read(path);
-	if (!io) return NULL;
+	if (!io) {
+		bapi_set_last_error("file could not be opened: %s", path);
+		return NULL;
+	}
 
 	size_t capacity = 4096;
 	size_t length	= 0;

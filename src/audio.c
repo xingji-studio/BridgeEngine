@@ -1,4 +1,5 @@
 #include "BridgeEngine.h"
+#include "internal/bapi_internal.h"
 #include "internal/platform/platform.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,7 +21,18 @@ struct bapi_sound_internal {
 static plat_audio_device_t audio_device	 = NULL;
 static bapi_sound_t		   active_sounds = NULL;
 static bapi_sound_t		   allocated_sounds = NULL;
+static float			   g_master_volume = 1.0f;
 static int				   audio_unsupported_warning_logged;
+
+plat_audio_device_t bapi_audio_device_handle(void)
+{
+	return audio_device;
+}
+
+float bapi_audio_master_volume(void)
+{
+	return g_master_volume;
+}
 
 static int audio_is_supported(void)
 {
@@ -93,7 +105,7 @@ static int ensure_sound_stream(bapi_sound_t sound)
 		return 1;
 	}
 
-	if (plat->audio.set_audio_stream_gain(sound->stream, sound->volume) != 0) {
+	if (plat->audio.set_audio_stream_gain(sound->stream, sound->volume * g_master_volume) != 0) {
 		printf("[AUDIO] Failed to set sound gain\n");
 		plat->audio.destroy_audio_stream(sound->stream);
 		sound->stream = NULL;
@@ -146,6 +158,7 @@ void bapi_audio_cleanup(void)
 
 	const plat_interface_t *plat = plat_get();
 
+	bapi_music_cleanup();
 	while (allocated_sounds != NULL) {
 		bapi_sound_free(allocated_sounds);
 	}
@@ -155,6 +168,46 @@ void bapi_audio_cleanup(void)
 		plat->audio.close_audio_device(audio_device);
 		audio_device = NULL;
 	}
+	g_master_volume = 1.0f;
+}
+
+void bapi_audio_set_master_volume(float volume)
+{
+	if (volume < 0.0f) volume = 0.0f;
+	if (volume > 1.0f) volume = 1.0f;
+	g_master_volume = volume;
+
+	if (!audio_is_supported()) return;
+	const plat_interface_t *plat = plat_get();
+	for (bapi_sound_t sound = allocated_sounds; sound != NULL; sound = sound->next_allocated) {
+		if (sound->stream != NULL) {
+			plat->audio.set_audio_stream_gain(sound->stream, sound->volume * g_master_volume);
+		}
+	}
+	bapi_music_apply_master_volume(g_master_volume);
+}
+
+float bapi_audio_get_master_volume(void)
+{
+	return g_master_volume;
+}
+
+void bapi_audio_stop_all(void)
+{
+	if (!audio_is_supported()) return;
+	bapi_sound_t sound = active_sounds;
+	while (sound != NULL) {
+		bapi_sound_t next = sound->next_active;
+		bapi_sound_stop(sound);
+		sound = next;
+	}
+}
+
+int bapi_audio_get_active_sound_count(void)
+{
+	int count = 0;
+	for (bapi_sound_t sound = active_sounds; sound != NULL; sound = sound->next_active) count++;
+	return count;
 }
 
 static bapi_sound_t sound_from_pcm(plat_audio_spec_t *spec, uint8_t *buffer, uint32_t length)
@@ -211,17 +264,20 @@ bapi_sound_t bapi_sound_load(const char *filepath)
 		uint8_t *data = bapi_file_read_alloc(filepath, &size);
 		if (!data) {
 			printf("[AUDIO] Failed to read WAV file %s\n", filepath);
+			bapi_set_last_error("audio file could not be read: %s", filepath);
 			return NULL;
 		}
 		int result = plat->audio.load_wav_mem(data, size, &spec, &buffer, &length);
 		free(data);
 		if (result != 0) {
 			printf("[AUDIO] Failed to load WAV %s\n", filepath);
+			bapi_set_last_error("WAV file could not be decoded: %s", filepath);
 			return NULL;
 		}
 	} else if (plat->audio.load_wav) {
 		if (plat->audio.load_wav(filepath, &spec, &buffer, &length) != 0) {
 			printf("[AUDIO] Failed to load WAV %s\n", filepath);
+			bapi_set_last_error("WAV file could not be decoded: %s", filepath);
 			return NULL;
 		}
 	} else {
@@ -249,6 +305,7 @@ bapi_sound_t bapi_sound_load_from_memory(const void *data, size_t size)
 	memset(&spec, 0, sizeof(spec));
 	if (plat->audio.load_wav_mem(data, size, &spec, &buffer, &length) != 0) {
 		printf("[AUDIO] Failed to decode WAV from memory\n");
+		bapi_set_last_error("WAV data could not be decoded from memory");
 		return NULL;
 	}
 
@@ -302,7 +359,7 @@ void bapi_sound_set_volume(bapi_sound_t sound, float volume)
 		}
 
 		if (sound->stream != NULL) {
-			plat->audio.set_audio_stream_gain(sound->stream, sound->volume);
+			plat->audio.set_audio_stream_gain(sound->stream, sound->volume * g_master_volume);
 		}
 	}
 }

@@ -4,7 +4,7 @@ AI agent 开发参考。先读这个，再改代码。
 
 ## 项目速览
 
-鹊桥引擎，跨平台 2D 图形引擎，C11 写成，C++11 只在 XJ380 适配层用了。对外暴露一个单头 C API：`include/BridgeEngine.h`。
+鹊桥引擎，跨平台 2D 图形引擎，引擎核心用 C11 写成；XJ380 适配层用 C++11，UI Kit 用 C++14，bcli 用 C++17。对外暴露一个单头 C API：`include/BridgeEngine.h`。
 
 两套后端：
 - **桌面**：SDL3 + FFmpeg，走 `src/platform/sdl3/`
@@ -42,23 +42,35 @@ AI agent 开发参考。先读这个，再改代码。
 include/                ← 唯一的 BridgeEngine.h，加 legacy/ 兼容旧拆分路径
 src/
   core/                 ← init.c (公开 API), render_context.c (生命周期), version.c
-  platform/             ← platform.c (单例), sdl3/, xj380/
+  platform/             ← platform.c (单例), sdl3/ (含 SDL_GPU/Vulkan), xj380/
   internal/             ← 私有头，按 engine/platform/scene 分组
   input/                ← 键盘/鼠标状态、鼠标绘制
-  audio.c, texture.c, video/, text.c, draw.c, math.c, camera.c
+  audio.c, music.c (流式 BGM), music_stub.c (XJ380), texture.c, video/, text.c, draw.c, math.c, camera.c
+  frame.c               ← 帧计时/固定步长/暂停/时间缩放
+  transform.c           ← 2D 仿射变换栈与摄像机矩阵
+  sprite_batch.c        ← 图集 sprite 批处理（显式 begin/draw/end）
+  atlas.c               ← .atlas 清单解析、region 查询与绘制
+  entity.c              ← 轻量场景实体/父子层级/sprite 绘制
+  error.c               ← bapi_get_last_error / 内部错误文本
+src/platform/sdl3/sdlgpu_renderer.c ← SDL_GPU/Vulkan 渲染器
+src/platform/sdl3/shaders/          ← GLSL 源与预编译 SPIR-V 头
   scene.c, level.c, button.c, xml_loader.c, log.c, io.c
+uikit/                  ← 独立 UI Kit（Dear ImGui，目标 bridgeengine_uikit）
+cli/                    ← bcli 项目管理 CLI（目标 bridgeengine_cli，输出 bcli）
 tests/                  ← 每个 ctest 编译自己的源文件子集，不链接 lib
 examples/               ← desktop, text, log, xj380 四个示例
 cmake/                  ← FindFFmpeg, BridgeEngineConfig.cmake.in, version header 模版
+tools/                  ← uix_encrypt.c, atlas_pack.c, bctex_pack.c, rz_pack.c（构建期烘焙）
 scripts/                ← bootstrap-vcpkg.ps1, bootstrap-ffmpeg.sh
-docs/                   ← architecture.md, bapi.md
+docs/                   ← architecture.md, bapi.md, cli.md, vulkan-backend.md
 ```
 
 ## 构建和测试
 
 ```bash
 # 本地开发（需 SDL3 + FFmpeg）
-cmake --preset default        # → build/
+cmake --preset default        # → build/（含 UI Kit，自动使用 .bridgeengine-deps）
+cmake --preset local          # 跳过 UI Kit，使用本地依赖
 cmake --build --preset default
 
 # 跑回归测试

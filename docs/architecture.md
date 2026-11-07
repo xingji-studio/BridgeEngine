@@ -64,18 +64,91 @@ XJ380 尚未实现字体文件加载；若 XAPI 要求非 UTF-8 编码，应在�
 
 ## 事件
 
-BAPI 自己定义事件枚举和事件结构。平台适配器产生 `plat_event_t`，`src/core/init.c` 将其转换为 `bapi_event_t` 后再由 `bapi_poll_event()` 返回。M4 新增的两个事件 `BAPI_EVENT_MOUSE_WHEEL` 与 `BAPI_EVENT_TEXT_INPUT` **不经过平台适配层**：SDL 后端不映射滚轮、桌面没有独立文本输入队列，它们由编辑器 Preview 面板等消费方直接构造并喂给 `bapi_ui_update`。XJ380 无这些输入来源。
+BAPI 自己定义事件枚举和事件结构。平台适配器产生 `plat_event_t`，`src/core/init.c` 将其转换为 `bapi_event_t` 后再由 `bapi_poll_event()` 返回。M4 新增的两个事件 `BAPI_EVENT_MOUSE_WHEEL` 与 `BAPI_EVENT_TEXT_INPUT` **不经过平台适配层**：SDL 后端不映射滚轮、桌面没有独立文本输入队列，它们由 UI Kit Preview 面板等消费方直接构造并喂给 `bapi_ui_update`。XJ380 无这些输入来源。
 
-## UI 编辑器（桌面 only）
+`BAPI_EVENT_WINDOW_RESIZED` 由 SDL3 的 `SDL_EVENT_WINDOW_RESIZED` 映射，携带窗口像素尺寸。设置逻辑分辨率后，SDL 后端在事件入口把鼠标/滚轮坐标从窗口空间转换到逻辑渲染空间，避免缩放后点击错位。
 
-`editor/` 是一个 C++/Dear ImGui 的独立桌面工具，构建目标为 `bridgeengine_editor`（`BRIDGEENGINE_BUILD_EDITOR`）。它**不**链接引擎运行时作为编辑器框架，而是直接使用公开 BAPI 和 `src/internal/bapi_internal.h` 的 native handle getter 拿到 SDL window/renderer。
+## 帧循环与显示
 
-- `editor/editor.h`：`EditorState`（全局：snap/grid、viewport 尺寸、多文档容器、recent files、pending 确认状态）和 `Command` 命令基类。每个打开的场景是一个 `Document` 结构（ui、文件路径、dirty、选择、视图相机、undo/redo 栈、拖拽/缩放/框选中间态、owner 注册表、剪贴板）。
-- `editor/document_model.cpp`：新建/加载/保存文档（走 `bapi_ui_load_from_xml`/`save_to_xml`）、命中测试、视图坐标换算，以及多文档管理（`EditorActivateDocument` / `EditorCloseDocument`）。
-- `editor/commands.cpp`：Add/Remove/SetRect/SetText/SetId/SetColor/SetTextSize/Reparent/Clone/Reorder/MultiRemove/MultiRect/SetSrc 命令 + undo/redo 栈。组件所有权由 `ComponentOwner`（shared_ptr）管理，Add 与 Remove 命令通过 `state.owner_registry` 共享同一 owner，保证 detached 组件恰好释放一次。`MultiRemoveCmd` / `MultiRectCmd` 把一次删除或多拖合并成单步 undo。
-- `editor/panels/`：menu、documents（标签页 + 未保存确认弹窗）、toolbar、viewport、preview、palette、tree、properties 面板。
+`src/frame.c` 维护单实例帧状态：高精度时间来自平台 `core.get_time_ns`（SDL 用 `SDL_GetTicksNS`，缺失时回退 `get_ticks` 毫秒），提供 delta、elapsed、FPS、固定步长累积、暂停和时间缩放。`bapi_frame_end()` 先 present，再按 `target_fps` 用 `bapi_delay` 补足帧预算；手工循环仍可直接调用 `bapi_render_present()`。delta 上限为 0.25 秒，防止断点/卡顿后的逻辑爆炸。
 
-编辑器支持多选（Ctrl+点击 切换、Delete 批量删除、视口批量拖动、框选）、层级树的拖拽重挂载（拖到容器或
+窗口/显示状态（vsync、全屏、逻辑分辨率、初始窗口尺寸）由 `src/core/init.c` 保存，通过 `plat_renderer_api_t.set_render_vsync`、`set_render_logical_size` 与 `plat_window_api_t.set_window_fullscreen`、`get_window_size` 下发。后端未提供槽位时设置函数为 no-op，getter 返回未生效状态。
+
+## 变换与绘制
+
+`src/transform.c` 维护最多 32 层的 2D 仿射栈，矩阵按 `x' = a*x + c*y + e`、`y' = b*x + d*y + f` 表示，并额外记录累计旋转角。`bapi_push_transform` 按 scale→rotate→translate 组合后与当前矩阵串联；`bapi_apply_camera` 压入摄像机 world→screen 矩阵。`src/core/init.c` 的图元、`src/texture.c` 的纹理和 `src/text.c` 的文字都读取栈顶变换；文字只跟随位置与缩放，不旋转。
+
+实心三角形通过平台 `renderer.render_fill_triangle` 下发（SDL 用 `SDL_RenderGeometry`），没有该槽位时在引擎层退化为逐扫描线 `render_fill_rect`。纹理的源矩形/旋转/翻转/tint 通过 `renderer.render_texture_ex` 下发（SDL 用 `SDL_RenderTextureRotated` + 颜色调制），没有槽位时退化为变换后 AABB 的普通绘制。
+
+`src/sprite_batch.c` 提供显式精灵批处理：同纹理的 sprite 四边形累积到最多 1024 个，`bapi_sprite_batch_end()` 或纹理切换时通过 `renderer.render_geometry_textured` 一次提交（SDL 用 `SDL_RenderGeometry` + 顶点色）。变换栈在生成顶点时逐点应用；tint 写入顶点色，翻转直接交换 UV。平台无该槽位时逐 sprite 走 `bapi_texture_draw()`，不改变语义。批处理不自动生成图集，`bapi_texture_draw_t.src` 直接使用图集内的子矩形。
+
+## 渲染后端
+
+桌面 SDL3 路径支持两种渲染器，都在同一个 `plat_interface_t` 下：
+
+- **SDL_Renderer**（默认回退）：`platform_sdl3.c` 原有路径。
+- **Vulkan / SDL_GPU**：`src/platform/sdl3/sdlgpu_renderer.c` 通过 `SDL_CreateGPUDeviceWithProperties` 强制 `"vulkan"` 驱动，使用 SDL_GPU 的交换链、管线、采样器和纹理上传。SDL_GPU 要求 Vulkan 1.0 + `VK_KHR_swapchain` + `VK_KHR_maintenance1`，并由 SDL 处理厂商/格式差异。初始化时关闭 clip distance、depth clamp、indirect draw first instance、anisotropy 等非必需特性，以覆盖更多老设备和移动端。
+
+`bapi_engine_init()` 走 `BAPI_RENDERER_AUTO`：先尝试 Vulkan，失败后回退 SDL_Renderer；`bapi_engine_init_ex()` 可强制 `BAPI_RENDERER_VULKAN` 或 `BAPI_RENDERER_SDL`。UI Kit 固定请求 SDL，因为预览面板依赖 `bapi_internal_get_native_renderer()` 返回的 SDL_Renderer。SDL_GPU 路径的 shader 资源布局遵循 SDL 约定：fragment sampler 位于 set 2 / binding 0，顶点没有资源；顶点颜色携带 tint，像素坐标在 CPU 侧转换为 NDC，逻辑分辨率用 letterbox 方式映射。
+
+SDL_GPU 纹理支持 `B8G8R8A8_UNORM` 以及设备支持的 `BC1_RGBA_UNORM`/`BC3_RGBA_UNORM`；`.bctex` 由 `bapi_texture_load()` 自动识别，Vulkan 直接上传压缩页，SDL_Renderer 回退 CPU 解码。GPU 后端目前每帧等待 GPU idle，后续可换成帧环+围栏以提升吞吐。
+
+## 世界运行时与 gameplay 基础
+
+- `src/world.c`：根实体容器、spawn/despawn 延迟销毁、暂停、活动摄像机、统一 update/draw。
+- `src/input_action.c`：命名动作多绑定层，位于原始 `input.c` 之上。
+- `src/tilemap.c`：行优先 tile 网格、可选 tileset、solid 标记、AABB 碰撞和 X/Y 分块移动解算。
+- `src/animation.c`：clip + 每帧时长 + bool 参数 + transition 的轻量状态机。
+- `src/collision.c`：AABB collider 世界、layer/mask、查询和 X/Y 扫掠移动。
+- `src/camera_controller.c`：死区跟随、边界夹紧、平滑和 shake。
+- `src/tween.c`：manager-owned float tween 与 easing。
+- `src/particles.c`：固定容量 2D 粒子池。
+- `src/pathfinding.c`：tilemap A* 寻路。
+- `src/timer.c`：帧驱动 one-shot / repeating 定时器。
+- `examples/vertical_slice/main.c`：Coin Runner 小游戏，包含胜负、重开、HUD 和上述系统集成。
+
+## 场景实体
+
+`src/entity.c` 提供轻量场景图：每个实体保存局部位置/旋转/缩放、父指针、动态子数组、可借用纹理和更新回调。`bapi_entity_draw()` 用变换栈逐层压入局部变换，因此实体树可以和摄像机、全局变换组合；sprite 使用 `bapi_texture_draw()` 的 pivot 0.5 绘制，实体位置即 sprite 中心。`add_child` 做重复挂载与环检测；父实体递归拥有子树，`destroy` 递归释放，`remove_child` 只解除关系。world 旋转/缩放按父链累加/相乘，父级非均匀缩放时旋转是近似值。
+
+## 流式音乐
+
+`src/music.c` 用 FFmpeg 打开并解码音频流，经 `swr` 统一成 44.1kHz 双声道 F32，再写入平台音频流。`bapi_music_update()` 在队列低于 0.75 秒时继续解码（每次最多 8 个 packet），因此主线程每帧调用即可，不需要额外线程。循环在 EOF 时 `av_seek_frame(0)` 并 flush 解码器；暂停/继续走平台 `pause_audio_stream_device`/`resume_audio_stream_device`。
+
+`bapi_audio_set_master_volume()` 同时更新所有音效流和音乐流。`src/music_stub.c` 供 XJ380 使用：没有音频能力时所有音乐接口返回失败/no-op，并写入一次错误文本。
+
+## 图集与资源烘焙
+
+`src/atlas.c` 解析文本清单（`BE_ATLAS 1`）并持有一个 page 纹理和 region 数组。`bapi_atlas_load()` 从清单目录解析 `page` 相对路径，走 `bapi_texture_from_file()` 的路径缓存；`bapi_atlas_load_with_texture()` 借用调用方传入的 page，不负责释放。region 名字在解析时复制到 atlas 自有内存，`bapi_atlas_draw()` 复用 `bapi_texture_draw()` 的源矩形/翻转/tint 路径，因此图集绘制同样受变换栈影响。
+
+构建期工具 `tools/atlas_pack.c` 用 SDL3_image 读取输入图片，按高度降序做 shelf 打包，条目间留 1px 透明间隔，页宽由 `--max-width` 限制、页尺寸向上取 2 的幂。输出 page 图片与 `.atlas` 清单；`--pack` 时用 RZip 的 `rz_create()` 把两者以相对名字写入 `.rz`。输出 PNG 是无损重编码，不含 GPU 块压缩。
+
+`tools/rz_pack.c` 是通用 RZip 打包器，支持 `-C DIR` 切换资源目录后按相对名字归档任意烘焙产物（字体、音频、图集清单等），供 `bapi_pack_*` 在运行时读取。
+
+## 错误上报
+
+`src/error.c` 保存固定 256 字节的最近错误文本；`bapi_set_last_error()` 是内部入口，引擎初始化、文件/纹理/音频/视频加载与资源包打开失败时写入具体上下文，公开的 `bapi_get_last_error()` 返回该文本。`bapi_engine_init()` 成功和 `bapi_clear_last_error()` 会清空。错误文本不参与日志级别过滤，也不保证线程安全（引擎仍是单线程模型）。
+
+## CLI 项目层
+
+`cli/` 是独立的 `bcli` 项目命令行工具，构建目标 `bridgeengine_cli`（输出 `bcli`）。它不链接
+SDL/FFmpeg，也不启动引擎运行时，只处理 `.bep`、模板、CMake 构建和运行。它同时是 UI Kit 与
+未来完整编辑器的项目后端：`bcli info --json` 提供机器可读项目状态，`bcli add-doc` /
+`remove-doc` 修改文档列表，`bcli build` / `bcli run` 统一构建入口。详见
+[cli.md](cli.md)。
+
+## UI Kit（桌面 only）
+
+`uikit/` 是一个 C++/Dear ImGui 的独立桌面工具，构建目标为 `bridgeengine_uikit`（`BRIDGEENGINE_BUILD_UIKIT`）。它**不**链接引擎运行时作为 UI Kit 框架，而是直接使用公开 BAPI 和 `src/internal/bapi_internal.h` 的 native handle getter 拿到 SDL window/renderer。
+
+定位：UI Kit 只负责 UI 文档的编辑、预览、保存和项目模板，不包含场景、实体、tilemap、动画状态机等 gameplay 编辑。等引擎的场景/ECS/tilemap/animation 能力完整后，再考虑把它扩展成完整游戏编辑器。因此代码里保留的 `EditorState` / `Editor*` 命名是 UI Kit 内部实现名，不再代表“完整编辑器”。
+
+- `uikit/editor.h`：`EditorState`（全局：snap/grid、viewport 尺寸、多文档容器、recent files、pending 确认状态）和 `Command` 命令基类。每个打开的场景是一个 `Document` 结构（ui、文件路径、dirty、选择、视图相机、undo/redo 栈、拖拽/缩放/框选中间态、owner 注册表、剪贴板）。
+- `uikit/document_model.cpp`：新建/加载/保存文档（走 `bapi_ui_load_from_xml`/`save_to_xml`）、命中测试、视图坐标换算，以及多文档管理（`EditorActivateDocument` / `EditorCloseDocument`）。
+- `uikit/commands.cpp`：Add/Remove/SetRect/SetText/SetId/SetColor/SetTextSize/Reparent/Clone/Reorder/MultiRemove/MultiRect/SetSrc 命令 + undo/redo 栈。组件所有权由 `ComponentOwner`（shared_ptr）管理，Add 与 Remove 命令通过 `state.owner_registry` 共享同一 owner，保证 detached 组件恰好释放一次。`MultiRemoveCmd` / `MultiRectCmd` 把一次删除或多拖合并成单步 undo。
+- `uikit/panels/`：menu、documents（标签页 + 未保存确认弹窗）、toolbar、viewport、preview、palette、tree、properties 面板。
+
+UI Kit 支持多选（Ctrl+点击 切换、Delete 批量删除、视口批量拖动、框选）、层级树的拖拽重挂载（拖到容器或
 空白区域成为子节点/根节点）、复制/粘贴与 Ctrl+D 原地复制（底层是 `bapi_ui_component_clone` 深拷贝 +
 唯一 id 去重）、对齐（以主选择为参照，左/中/右/上/中/下）、z 序调整（Edit > Order 或 Home/End/PgUp/PgDn，
 底层是 `bapi_ui_insert_root` / `bapi_ui_component_insert_child` 的 index 语义）。视口带文档坐标网格
@@ -85,7 +158,7 @@ BAPI 自己定义事件枚举和事件结构。平台适配器产生 `plat_event
 Properties 面板对资源型组件提供 `src` 的 Browse（原生对话框 → `SetSrcCmd`，失败回滚且不记录 undo）；
 多选时显示批量区，可对全部选中组件一次性应用文本大小、可见/启用和颜色；Id 输入带实时唯一性校验，
 与同级组件重名时标红并拦截提交（`EditorIdIsUnique` 校验兄弟作用域）。
-- `editor/platform_dialogs.cpp`：原生文件对话框（Windows，`GetOpenFileNameA`/`GetSaveFileNameA`）。为保证 `fopen`/`bapi_ui_load_from_xml` 两侧一致，走 ANSI 变体，因此**只保证 ASCII 路径**；非 ASCII 字符可能被系统代码页转码损坏，视为已知限制。非 Windows 构建返回空串（视为取消）。
+- `uikit/platform_dialogs.cpp`：原生文件对话框（Windows，`GetOpenFileNameA`/`GetSaveFileNameA`）。为保证 `fopen`/`bapi_ui_load_from_xml` 两侧一致，走 ANSI 变体，因此**只保证 ASCII 路径**；非 ASCII 字符可能被系统代码页转码损坏，视为已知限制。非 Windows 构建返回空串（视为取消）。
 
 多文档：每个 `Document` 是独立的 UI 树、undo/redo 栈与视图相机。活动文档的字段直接保存在
 `EditorState` 上（既有代码无感），切换标签时通过 `swap_doc_state` 把字段换入/换出，活动文档与
@@ -97,43 +170,43 @@ Properties 面板对资源型组件提供 `src` 的 Browse（原生对话框 →
 
 视口渲染：引擎的 `bapi_ui_render_ex()` 先画进一张 SDL offscreen 纹理（`SDL_TEXTUREACCESS_TARGET`），再经 `ImGui::Image()` 显示，使引擎内容与 ImGui 窗口的 z 排序和裁剪由 ImGui 处理。视图相机映射为 `screen = (doc + offset) * scale`。
 
-实时预览（M4）：`editor/panels/preview.cpp` 与视口同款 offscreen 纹理渲染活动文档，默认自动
+实时预览（M4）：`uikit/panels/preview.cpp` 与视口同款 offscreen 纹理渲染活动文档，默认自动
 适配窗口尺寸，Ctrl+滚轮缩放（`EditorState::preview_scale`：0=自适应，>0=手动缩放）。鼠标/滚轮/
 按键/IME 文本经 ImGui IO 转换后直接构造 `bapi_event_t` 喂给 `bapi_ui_update`，预览与编辑共用
 同一棵 UI 树（WYSIWYG）：点按钮、拖滑块、滚 SCROLL、敲 INPUT 都即时生效，预览点击不改变
-编辑器选择。脏策略——只有会改持久化状态（checkbox/slider/select 的 `checked`/`value`/
+UI Kit 选择。脏策略——只有会改持久化状态（checkbox/slider/select 的 `checked`/`value`/
 `selected_index`、INPUT 文本、激活）的交互才调用 `EditorMarkDirty`；hover/focus 与滚动
 （`scroll_offset` 不入 XML）不标脏。每次进入预览窗口都发一次 MOUSE_MOTION 刷新悬停、离开时发
 远点清除，`pressed` 在预览外释放时补发 BUTTON_UP 兜底。
 
-项目体系（M6）：编辑器围绕 `.bep` 项目文件组织工程。`templates/project/` 是自包含的项目模板
+项目体系（M6）：UI Kit 围绕 `.bep` 项目文件组织工程。`templates/project/` 是自包含的项目模板
 （CMakeLists.txt、main.c、`assets/text/font.ttf`、`ui/` 示例、`project.bep`），
-`editor/project_templates.cpp` 的 `EditorCreateProject` 把模板复制到目标目录并替换
+`uikit/project_templates.cpp` 的 `EditorCreateProject` 把模板复制到目标目录并替换
 `__PROJECT_NAME__`/`__EXEC_NAME__`/`__ENGINE_DIR__` 占位符，再把 `project.bep` 重命名为
-`<name>.bep`（通过 `out_bep_path` 输出实际生成路径）。`editor/project_file.cpp` 解析 `.bep`
+`<name>.bep`（通过 `out_bep_path` 输出实际生成路径）。`uikit/project_file.cpp` 解析 `.bep`
 （INI 风格，`name`/`engine`/`[documents]` 段，文档为相对路径），`EditorOpenProject` 加载项目
-文档并写入最近项目列表。`editor/panels/welcome.cpp` 是启动欢迎页（最近项目/最近文件/新建项目/
+文档并写入最近项目列表。`uikit/panels/welcome.cpp` 是启动欢迎页（最近项目/最近文件/新建项目/
 打开文档），主窗口启动时默认显示；命令行传 XML 路径时直接进设计界面。新建项目向导
-`editor/panels/menu.cpp` 的三步表单（名称→位置→引擎源码）默认预填当前工作目录与
+`uikit/panels/menu.cpp` 的三步表单（名称→位置→引擎源码）默认预填当前工作目录与
 `BRIDGEENGINE_SOURCE_DIR`。
 
-i18n（M6）：`editor/i18n.cpp` 是轻量多语言层，`L(key)` 以英文源串为 key 查表。翻译表在运行时从
-`editor/locale/zh_CN.txt`/`en.txt` 加载（`key = value` 行格式，`#` 注释），未命中回退英文 key，
-因此局部翻译不会损坏界面。语言偏好持久化在 `editor_settings.txt`，View > 语言 切换时会同时触发
-一次默认布局重置。编辑器按 `/utf-8` 编译，启动时通过 `GetGlyphRangesChineseSimplifiedCommon`
+i18n（M6）：`uikit/i18n.cpp` 是轻量多语言层，`L(key)` 以英文源串为 key 查表。翻译表在运行时从
+`uikit/locale/zh_CN.txt`/`en.txt` 加载（`key = value` 行格式，`#` 注释），未命中回退英文 key，
+因此局部翻译不会损坏界面。语言偏好持久化在 `editor_settings.txt`（沿用旧文件名以兼容已有配置），View > 语言 切换时会同时触发
+一次默认布局重置。UI Kit 按 `/utf-8` 编译，启动时通过 `GetGlyphRangesChineseSimplifiedCommon`
 加载中文字形，保证简体中文渲染。
 
-构建/运行（M7）：`editor/build_run.cpp` 在后台线程跑 cmake（未配置时先 `-S`/`-B` configure；
+构建/运行（M7）：`uikit/build_run.cpp` 在后台线程跑 cmake（未配置时先 `-S`/`-B` configure；
 检测到 `VCPKG_ROOT` 则带 vcpkg toolchain），用 `_popen` 捕获输出追加到 `state.build_log`
-（`build_log_mutex` 保护）。`EditorBuildOutputPanel`（`editor/panels/build_output.cpp`）把日志
+（`build_log_mutex` 保护）。`EditorBuildOutputPanel`（`uikit/panels/build_output.cpp`）把日志
 渲染在底部 Build Output dock，可清除。Project 菜单的 Build（Ctrl+Shift+B）/ Run（Ctrl+F5）先
 构建再从 build 目录递归定位 `<项目名>.exe`，以 exe 所在目录为工作目录启动，保证模板里
 `assets/` 相对路径可用。模板项目 `add_subdirectory` 引擎时关闭
-`BRIDGEENGINE_BUILD_SHARED/EXAMPLES/TESTS/EDITOR/XJ380`，只产出运行所需的最小静态库。
+`BRIDGEENGINE_BUILD_SHARED/EXAMPLES/TESTS/UIKIT/XJ380`，只产出运行所需的最小静态库。
 
 ImGui 来自 docking 分支源码。构建时优先使用 `BRIDGEENGINE_IMGUI_SOURCE_DIR` 指定的本地源码树（例如 vcpkg 的 buildtrees 拷贝）；否则通过 FetchContent 从 GitHub 拉取 `v1.92.8-docking`。imgui 自带的 CMakeLists 会 `find_package(SDL3 CONFIG REQUIRED)`，与 FetchContent 的 SDL3 冲突，因此只编译其核心源文件和 SDL3/SDL-renderer 后端，直接构建静态库。
 
-默认布局：编辑器内置一套默认 docking 布局（顶部 Documents 标签条，左侧 Hierarchy/Palette 上下排列，中央 Viewport，右侧 Properties/Preview 上下排列）。布局版本号以自定义 `[EditorLayout]` settings 段持久化在 `imgui.ini` 里：当保存的版本早于当前版本（首次启动或升级后）自动应用一次默认布局并把版本号升到当前值，之后尊重用户自排的布局、绝不复写。`View > Reset Layout` 随时可手动恢复默认布局。
+默认布局：UI Kit 内置一套默认 docking 布局（顶部 Documents 标签条，左侧 Hierarchy/Palette 上下排列，中央 Viewport，右侧 Properties/Preview 上下排列）。布局版本号以自定义 `[EditorLayout]` settings 段持久化在 `imgui.ini` 里：当保存的版本早于当前版本（首次启动或升级后）自动应用一次默认布局并把版本号升到当前值，之后尊重用户自排的布局、绝不复写。`View > Reset Layout` 随时可手动恢复默认布局。
 
 ## 后续 2.5D
 

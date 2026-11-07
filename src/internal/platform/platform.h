@@ -11,6 +11,7 @@ typedef struct {
 	void (*quit)(void);
 	void (*delay)(uint32_t ms);
 	uint32_t (*get_ticks)(void);
+	uint64_t (*get_time_ns)(void);
 	void (*log_debug)(const char *fmt, ...);
 	void (*log_info)(const char *fmt, ...);
 	void (*log_warn)(const char *fmt, ...);
@@ -24,6 +25,8 @@ typedef struct {
 	int (*poll_event)(plat_event_t *event);
 	void (*get_mouse_state)(float *x, float *y);
 	void *(*get_native_window)(plat_window_t window);
+	int (*set_window_fullscreen)(plat_window_t window, int enabled);
+	int (*get_window_size)(plat_window_t window, int *width, int *height);
 } plat_window_api_t;
 
 typedef struct {
@@ -41,6 +44,17 @@ typedef struct {
 	void (*render_texture)(plat_renderer_t renderer, plat_texture_t texture, float x, float y,
 						   float w, float h);
 	void *(*get_native_renderer)(plat_renderer_t renderer);
+	int (*set_render_vsync)(plat_renderer_t renderer, int enabled);
+	int (*set_render_logical_size)(plat_renderer_t renderer, int width, int height);
+	void (*render_fill_triangle)(plat_renderer_t renderer, float x1, float y1, float x2, float y2,
+							 float x3, float y3, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+	void (*render_texture_ex)(plat_renderer_t renderer, plat_texture_t texture,
+							  const plat_rectf_t *src, const plat_rectf_t *dst,
+							  const plat_pointf_t *pivot, float rotation, int flip, uint8_t r,
+							  uint8_t g, uint8_t b, uint8_t a);
+	void (*render_geometry_textured)(plat_renderer_t renderer, plat_texture_t texture,
+									 const plat_vertex_t *vertices, int vertex_count,
+									 const int *indices, int index_count);
 } plat_renderer_api_t;
 
 typedef struct {
@@ -81,6 +95,7 @@ typedef struct {
 	void (*clear_audio_stream)(plat_audio_stream_t stream);
 	int (*set_audio_stream_gain)(plat_audio_stream_t stream, float gain);
 	void (*resume_audio_stream_device)(plat_audio_stream_t stream);
+	void (*pause_audio_stream_device)(plat_audio_stream_t stream);
 	int (*load_wav)(const char *filepath, plat_audio_spec_t *spec, uint8_t **buffer,
 					uint32_t *length);
 	int (*load_wav_mem)(const void *data, size_t size, plat_audio_spec_t *spec, uint8_t **buffer,
@@ -114,6 +129,8 @@ typedef struct {
 	plat_sync_api_t		sync;
 	plat_io_api_t		io;
 	uint32_t			capabilities;
+	int (*set_renderer_backend)(int backend);
+	int (*get_renderer_backend)(void);
 } plat_interface_t;
 
 #define PLAT_CAPABILITY_AUDIO 0x00000001u

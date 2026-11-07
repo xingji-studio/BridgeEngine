@@ -10,20 +10,55 @@ BridgeEngine 是一个跨平台 2D 图形引擎，提供简洁的 C API。桌面
 
 | 模块 | 说明 |
 |------|------|
-| **渲染** | 点、线、矩形、圆、三角形、多边形等基本图元绘制 |
+| **渲染** | SDL_Renderer / Vulkan(SDL_GPU) 可选后端，点线矩形圆多边形、实心填充 |
+| **后端** | 默认尝试 Vulkan，失败自动回退 SDL_Renderer；UI Kit 固定 SDL |
+| **帧循环** | delta、固定步长、时间缩放、暂停、FPS 统计、目标帧率与 vsync |
+| **2D 变换** | 变换栈、摄像机接入、sprite 源矩形/旋转/缩放/翻转/tint、图集批处理 |
+| **窗口** | 逻辑分辨率、全屏、vsync、窗口尺寸查询与 resize 事件 |
 | **文字** | 桌面端基于 SDL3_ttf，支持 TTF 字体 |
-| **图像** | 加载和绘制 PNG/JPEG 等格式纹理 |
-| **音频** | 桌面端 WAV 音效加载播放，支持循环和音量控制 |
+| **图像** | 加载和绘制 PNG/JPEG 等格式纹理，按路径缓存 |
+| **音频** | 桌面端 WAV 音效加载播放，支持循环、音量、master volume；FFmpeg 流式 BGM |
 | **视频** | 桌面端基于 FFmpeg 解码，支持 MP4/AVI/MKV 播放 |
+| **场景实体** | transform 层级、父子挂载、sprite 绘制、更新回调 |
+| **世界运行时** | 根实体管理、spawn/despawn、暂停、摄像机、统一 update/draw |
+| **输入动作** | 命名动作、多键/鼠标绑定、down/pressed/released |
+| **Tilemap** | 行优先网格、tileset、solid 标记、AABB 碰撞、分块移动解算 |
+| **动画状态机** | clip、帧时长、循环、bool 参数、transition、finished |
+| **碰撞** | AABB collider、layer/mask、查询、X/Y 扫掠移动解算 |
+| **摄像机控制器** | 死区、平滑跟随、边界夹紧、shake |
+| **Tween** | 8 种 easing、manager、loop、finished |
+| **粒子** | 固定池、发射率、重力、颜色/透明度插值 |
+| **寻路** | tilemap A*，4/8 邻接，solid 阻挡 |
+| **定时器** | 帧驱动 one-shot / repeating，回调内可 cancel |
 | **场景管理** | 多场景创建/切换，生命周期回调 |
 | **关卡管理** | 关卡加载/卸载，序列管理，上下级切换 |
 | **XML 配置** | 场景和关卡的 XML 文件加载与保存 |
 | **资源包** | RZip (.rz) 资源包读取：枚举条目、按名字查询、整文件读取 |
+| **图集** | 构建期 `bridgeengine_atlas_pack` 打包图集页 + 清单，运行时按名字绘制 |
+| **资源烘焙** | `bridgeengine_atlas_pack` 打包图集，`bridgeengine_bctex_pack` 生成 BC1/BC3，`bridgeengine_rz_pack` 打包产物 |
 | **输入系统** | 键盘状态查询、鼠标位置获取 |
 | **摄像机** | 2D 摄像机，支持平移、缩放、世界坐标转换 |
 | **数学工具** | 向量运算、插值、钳制等工具函数 |
+| **错误上报** | `bapi_get_last_error()` 返回最近一次引擎/资源失败原因 |
+| **项目 CLI** | `bcli` 管理 `.bep` 项目、模板、UI 文档、构建/运行和依赖诊断 |
+| **UI Kit** | 独立 UI 文档设计工具：多文档、层级、属性、预览、项目模板；不是完整游戏/场景编辑器 |
+| **Vertical Slice** | `examples/vertical_slice`：可胜负/重开的 Coin Runner，展示世界、输入、碰撞、寻路、摄像机、动画、粒子和 HUD |
 
-完整API文档请查看[BAPI文档](docs/bapi.md)
+完整API文档请查看[BAPI文档](docs/bapi.md)，项目命令行见[CLI 文档](docs/cli.md)。
+
+```bash
+bcli new my_game --dir ~/projects --engine ~/BridgeEngine
+cd ~/projects/my_game
+bcli build
+bcli run
+
+# 引擎自带的 vertical slice
+cmake --build build --target bridgeengine_vertical_slice_example
+./build/bridgeengine_vertical_slice_example
+```
+
+> UI Kit 的定位是 **UI 文档设计工具**。引擎的完整场景/ECS/tilemap/动画状态机仍在推进，
+> 因此当前不把它称为“完整游戏编辑器”。
 
 ---
 
@@ -90,6 +125,43 @@ cmake --build --preset default
 ```
 
 预设使用 Ninja，并将默认构建目录固定为 `build/`。若此前用其他生成器配置过该目录，先删除 `build/CMakeCache.txt` 和 `build/CMakeFiles/` 再重新配置。
+
+`default` 预设会构建 UI Kit，因此首次配置可能从 GitHub 下载 SDL3_image、SDL3_ttf 和 Dear ImGui，网络不畅时会显得很慢。只构建引擎/示例时可以跳过 UI Kit：
+
+```bash
+cmake --preset default -DBRIDGEENGINE_BUILD_UIKIT=OFF
+```
+
+已有本地 ImGui 源码时用 `-DBRIDGEENGINE_IMGUI_SOURCE_DIR=/path/to/imgui` 避免 clone。系统已安装
+SDL3_image/SDL3_ttf 时可加 `-DBRIDGEENGINE_FETCH_SDL=OFF`；只有系统 zlib/libpng/freetype/harfbuzz
+时可用 `-DSDLIMAGE_VENDORED=OFF -DSDLTTF_VENDORED=OFF`。复用已经下载过的 SDL 源码：
+
+```bash
+cmake --preset default -DBRIDGEENGINE_BUILD_UIKIT=OFF \
+  -DFETCHCONTENT_SOURCE_DIR_SDL3_IMAGE="$PWD/build/desktop/_deps/sdl3_image-src" \
+  -DFETCHCONTENT_SOURCE_DIR_SDL3_TTF="$PWD/build/desktop/_deps/sdl3_ttf-src" \
+  -DSDLIMAGE_VENDORED=OFF -DSDLTTF_VENDORED=OFF
+```
+
+配置被中断后不要让半初始化的目录继续用，先删掉对应 build 目录再重配。
+
+本机已把 SDL3_image/SDL3_ttf 和 Dear ImGui 以无 root 方式安装到 `.bridgeengine-deps/`。
+CMake 会自动检测该目录，所以默认预设不再需要联网：
+
+```bash
+cmake --preset default
+cmake --build --preset default
+```
+
+只想构建引擎、跳过 UI Kit 时：
+
+```bash
+cmake --preset local
+cmake --build --preset local
+```
+
+`local` 预设使用 `.bridgeengine-deps`、跳过 UI Kit 与网络下载。若该目录不存在，先按上面的
+`FETCHCONTENT_SOURCE_DIR_*` 方式配置一次，或安装系统 SDL3_image/SDL3_ttf。
 
 CMake 默认生成 `build/compile_commands.json`，并构建：
 
@@ -196,8 +268,11 @@ BridgeEngine/
 │   ├── platform/       # 平台层 (SDL3 / XJ380)
 │   └── ...
 ├── examples/           # 桌面、文字、日志和 XJ380 示例及资源
+├── uikit/              # UI Kit（Dear ImGui 独立工具）
+├── cli/                # bcli 项目管理命令行
+├── templates/          # 项目模板
 ├── tests/              # 回归测试
-├── docs/               # 架构与 API 文档
+├── docs/               # 架构、API 与 CLI 文档
 ├── cmake/              # CMake 模块
 ├── scripts/            # 本地依赖引导脚本
 ├── CMakeLists.txt
@@ -213,7 +288,8 @@ v2 的公开接口仅为 `BridgeEngine.h`。旧项目若仍包含 `audio/audio.h
 
 ---
 ## 相关项目
-[BridgeEngine CLI](https://github.com/GHhuang1057/becli)用于更优雅的食用BridgeEngine :D
+仓库内置的 `bcli` 负责项目创建、构建和运行；外部
+[BridgeEngine CLI](https://github.com/GHhuang1057/becli) 作为相关项目保留。
 
 ## 第三方组件
 

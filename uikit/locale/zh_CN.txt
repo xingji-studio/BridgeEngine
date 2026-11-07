@@ -1,0 +1,178 @@
+# BridgeEngine UI Kit - Simplified Chinese (zh_CN)
+# Format: key = value, one per line. '#' starts a comment. %s / %.2f / %zu are
+# format placeholders passed through to ImGui.
+
+# menu bar
+File = 文件
+New = 新建
+New Project... = 新建项目...
+Open Project... = 打开项目...
+Recent Projects = 最近项目
+Open... = 打开...
+Recent Files = 最近文件
+Save = 保存
+Save As... = 另存为...
+Save Project = 保存项目
+Close = 关闭
+Close All = 全部关闭
+Quit = 退出
+Build = 构建
+Run = 运行
+Stop = 停止
+Build Configuration = 构建配置
+
+# edit menu
+Edit = 编辑
+Undo = 撤销
+Redo = 重做
+Copy = 复制
+Cut = 剪切
+Paste = 粘贴
+Duplicate = 复制副本
+Select All = 全选
+Delete Selection = 删除选中
+Order = 排列
+Bring to Front = 置顶
+Move Up = 上移
+Move Down = 下移
+Send to Back = 置底
+Align = 对齐
+Align Left = 左对齐
+Align Center H = 水平居中
+Align Right = 右对齐
+Align Top = 顶对齐
+Align Middle V = 垂直居中
+Align Bottom = 底对齐
+
+# view menu
+View = 视图
+Zoom In = 放大
+Zoom Out = 缩小
+Reset View = 重置视图
+Reset Layout = 重置布局
+Language = 语言
+简体中文 = 简体中文
+English = English
+
+# panel titles
+Documents = 文档
+Hierarchy = 层级
+Palette = 组件面板
+Scenes = 场景
+Viewport = 视口
+Properties = 属性
+Preview = 预览
+
+# welcome screen
+Welcome = 欢迎
+BridgeEngine UI Kit = BridgeEngine UI Kit
+Open a project or start a new one. = 打开项目或新建项目。
+No recent projects. = 暂无最近项目。
+Open UI Document... = 打开 UI 文档...
+
+# new project wizard
+Project Name = 项目名称
+Parent Directory = 项目位置
+Browse... = 浏览...
+Engine Source (optional) = 引擎源码（可选）
+Create = 创建
+Cancel = 取消
+wizard.hint = 将在所选目录下创建一个可独立构建的 BridgeEngine 工程，包含构建脚本、入口源码、默认字体、UI 场景文档以及 <名称>.bep 项目文件。
+wizard.step1 = 第 1 步 · 项目名称（C 标识符）
+wizard.step2 = 第 2 步 · 创建位置（将在所选目录下新建 <名称> 文件夹）
+wizard.step3 = 第 3 步 · 引擎源码（可选；留空则使用已安装的引擎包）
+wizard.name_tooltip = C 标识符：字母、数字、下划线，不能以数字开头
+wizard.engine_tooltip = 指向 BridgeEngine 源码以通过 add_subdirectory 链接。留空则使用已安装的引擎包（find_package）。
+wizard.files = 将生成以下内容：
+wizard.open_parent = 选择项目父目录
+wizard.open_engine = 选择 BridgeEngine 源码目录
+wizard.created = 项目已创建：%s
+wizard.created_fail = 项目已创建，但打开失败：%s
+
+# unsaved-changes modal
+Unsaved Changes = 未保存的更改
+Save changes to %s? = 要保存对 %s 的更改吗？
+Discard = 放弃
+
+# panels
+Build Output = 构建输出
+build.running = 正在构建...
+build.success = 构建成功
+build.failed = 构建失败
+build.jump_tooltip = 点击打开源文件
+Clear = 清除
+Drag components from the palette or use File > Open to add documents. = 从组件面板拖入组件，或使用 文件 > 打开 添加文档。
++ Add Scene = +添加场景
+Click the radio to switch scenes = 点击单选按钮切换场景
+No document open. = 未打开文档。
+No root components. = 没有根组件。
+
+# toolbar
+Grid = 网格
+Snap = 吸附
+Scale: %.2f = 缩放: %.2f
+
+# properties / tree
+Reparent %s = 将 %s 设为子级
+(none) = （无）
+Visible = 可见
+Enabled = 启用
+Id = ID
+Text = 文本
+Type: %s = 类型: %s
+Add %s = 添加 %s
+Batch (%zu selected) = 批量（选中 %zu 个）
+Src = 源文件
+Text Size = 字体大小
+No selection = 未选中组件
+X = X
+Y = Y
+W = W
+H = H
+Rect (doc units) = 矩形（文档单位）
+Normal = 常态
+Hover = 悬停
+Click = 点击
+Apply color to all: = 将颜色应用到所有：
+Id already in use by a sibling component = 该 ID 已被同级组件使用
+
+# hierarchy search + layers
+Search components... = 搜索组件...
+(locked) = 已锁定
+(hidden) = 已隐藏
+Lock = 锁定
+Hide In UI Kit = 在 UI Kit 中隐藏
+Delete = 删除
+
+# distribute / uniform size
+Distribute = 分布
+Distribute Horizontal = 水平分布
+Distribute Vertical = 垂直分布
+Make Same Size = 统一尺寸
+Same Width = 相同宽度
+Same Height = 相同高度
+Same Width && Height = 相同宽高
+
+# group / ungroup
+Group = 编组
+Ungroup = 取消编组
+
+# templates
+Templates = 模板
+Save as Template... = 保存为模板...
+
+# anchors (relative positioning)
+Anchors (relative to parent) = 锚点（相对父级）
+Offsets are relative to the parent's top-left. = 偏移相对于父级左上角。
+
+# undo history
+History = 历史
+No history yet. = 暂无历史记录。
+
+# ui encryption key
+UI Encryption Key... = UI 加密密钥...
+UI Encryption Key = UI 加密密钥
+key.hint = 设置后保存的 UI 文档会加密为 .uix 二进制文件，运行时需用相同密钥加载。密钥为空则保存为明文 XML（兼容旧文件）。
+key.tooltip = 留空并使用“应用”可切回明文 XML；设置新密钥后再保存的文档将使用新密钥加密。
+Apply = 应用
+Clear = 清除

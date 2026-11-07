@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui>
+  <panel id="hud" x="12" y="10" w="440" h="184" color="#101018EE">
+    <label id="hud_title" x="16" y="12" text="COIN RUNNER" size="22" color="#FFFFFFFF" />
+    <label id="hud_stats" x="16" y="46" text="FPS 0" size="18" color="#7FE0FFFF" />
+    <label id="hud_time" x="16" y="70" text="TIME 0.0" size="18" color="#FFFFFFFF" />
+    <label id="hud_coins" x="16" y="94" text="COINS 0 / 3" size="18" color="#FFD246FF" />
+    <label id="hud_goal" x="16" y="122" text="Collect every coin. Avoid the hunter." size="16" color="#E0E0F0FF" />
+    <label id="hud_hint" x="16" y="148" text="WASD move  |  R restart  |  Esc quit" size="15" color="#A0A0B0FF" />
+  </panel>
+  <panel id="result_panel" x="240" y="186" w="480" h="164" color="#101018F5" visible="false">
+    <label id="result_title" x="40" y="30" text="ALL COINS COLLECTED!" size="28" color="#FFD246FF" />
+    <label id="result_detail" x="40" y="80" text="Finished." size="18" color="#FFFFFFFF" />
+    <label id="result_hint" x="40" y="122" text="Press R to play again." size="17" color="#7FE0FFFF" />
+  </panel>
+</ui>

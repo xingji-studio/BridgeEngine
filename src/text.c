@@ -1,6 +1,7 @@
 #include "BridgeEngine.h"
 #include "internal/bapi_internal.h"
 #include "internal/engine/render_context.h"
+#include "internal/engine/transform.h"
 #include "internal/platform/platform.h"
 #include <limits.h>
 #include <stdlib.h>
@@ -221,6 +222,11 @@ void bapi_draw_text(const char *text, float x, float y, float size, bapi_color_t
 	if (!bapi_runtime_is_initialized()) return;
 	size_t length = strlen(text);
 	if (length > INT_MAX) return;
+
+	bapi_vec2_t position = bapi_transform_point((bapi_vec2_t){x, y});
+	x					 = position.x;
+	y					 = position.y;
+	size *= bapi_transform_scale_factor();
 
 	const plat_interface_t *plat	 = plat_get();
 	plat_renderer_t			renderer = bapi_internal_get_renderer();

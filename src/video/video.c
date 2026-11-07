@@ -1,5 +1,6 @@
 #include "BridgeEngine.h"
 #include "internal/bapi_internal.h"
+#include "internal/bapi_internal.h"
 #include "internal/platform/platform.h"
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -764,6 +765,7 @@ bapi_video_t bapi_video_load(const char *filepath)
 
 	if (filepath == NULL) {
 		printf("[VIDEO] Error: filepath is NULL\n");
+		bapi_set_last_error("video filepath is NULL");
 		return NULL;
 	}
 
@@ -772,6 +774,7 @@ bapi_video_t bapi_video_load(const char *filepath)
 		plat_io_t *io = plat->io.open_read(filepath);
 		if (!io) {
 			printf("[VIDEO] Error: Cannot open file %s\n", filepath);
+			bapi_set_last_error("video file could not be opened: %s", filepath);
 			return NULL;
 		}
 		source.user  = io;

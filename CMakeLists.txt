@@ -34,11 +34,36 @@ option(BRIDGEENGINE_BUILD_STATIC "Build the static BridgeEngine library" ON)
 option(BRIDGEENGINE_BUILD_EXAMPLES "Build BridgeEngine example executables" ON)
 option(BRIDGEENGINE_BUILD_XJ380 "Enable XJ380 custom build targets" ON)
 option(BRIDGEENGINE_BUILD_TESTS "Build BridgeEngine regression tests" ON)
-option(BRIDGEENGINE_BUILD_EDITOR "Build the BridgeEngine UI editor (desktop, ImGui)" ON)
+option(BRIDGEENGINE_BUILD_UIKIT "Build the BridgeEngine UI Kit (desktop, ImGui)" ON)
+option(BRIDGEENGINE_BUILD_CLI "Build the bcli project manager" ON)
+# Backward-compatible alias for the previous option name.
+if(DEFINED BRIDGEENGINE_BUILD_EDITOR)
+	message(DEPRECATION "BRIDGEENGINE_BUILD_EDITOR is deprecated; use BRIDGEENGINE_BUILD_UIKIT")
+	set(BRIDGEENGINE_BUILD_UIKIT "${BRIDGEENGINE_BUILD_EDITOR}" CACHE BOOL "" FORCE)
+endif()
 option(BRIDGEENGINE_FETCH_SDL "Fetch SDL3 dependencies when they are unavailable" ON)
 option(BRIDGEENGINE_FETCH_XJ380 "Fetch the XJ380 SDK when XJ380_SDK is unset" ON)
-option(BRIDGEENGINE_FETCH_IMGUI "Fetch Dear ImGui (docking) sources when building the editor" ON)
+option(BRIDGEENGINE_FETCH_IMGUI "Fetch Dear ImGui (docking) sources when building the UI Kit" ON)
 option(BRIDGEENGINE_ENABLE_ASAN "Enable AddressSanitizer for supported regression tests" OFF)
+
+# Optional local dependency prefix created by the developer (not committed).
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.bridgeengine-deps")
+	list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/.bridgeengine-deps")
+	if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.bridgeengine-deps/lib/pkgconfig")
+		if(DEFINED ENV{PKG_CONFIG_PATH} AND NOT "$ENV{PKG_CONFIG_PATH}" STREQUAL "")
+			set(ENV{PKG_CONFIG_PATH}
+				"${CMAKE_CURRENT_SOURCE_DIR}/.bridgeengine-deps/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+		else()
+			set(ENV{PKG_CONFIG_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/.bridgeengine-deps/lib/pkgconfig")
+		endif()
+	endif()
+	if(NOT DEFINED BRIDGEENGINE_IMGUI_SOURCE_DIR AND
+	   EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.bridgeengine-deps/imgui/imgui.cpp")
+		set(BRIDGEENGINE_IMGUI_SOURCE_DIR
+			"${CMAKE_CURRENT_SOURCE_DIR}/.bridgeengine-deps/imgui"
+			CACHE PATH "Path to a local Dear ImGui (docking branch) source tree")
+	endif()
+endif()
 
 set(BRIDGEENGINE_FETCHCONTENT_TIMESTAMP_ARGS)
 if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
@@ -68,12 +93,15 @@ configure_file(
 set(BRIDGEENGINE_PLATFORM_SOURCES
 	src/platform/platform.c
 	src/platform/sdl3/platform_sdl3.c
+	src/platform/sdl3/sdlgpu_renderer.c
 	src/platform/sdl3/keycode.c
 )
 set(BRIDGEENGINE_CORE_SOURCES
 	src/core/render_context.c
 	src/core/init.c
 	src/core/version.c
+	src/error.c
+	src/frame.c
 	src/io.c
 	src/pack.c
 	src/resource.c
@@ -85,8 +113,23 @@ set(BRIDGEENGINE_RENDER_SOURCES
 	src/text.c
 	src/math.c
 	src/texture.c
+	src/texture_bc.c
 	src/input/input.c
 	src/camera.c
+	src/transform.c
+	src/sprite_batch.c
+	src/atlas.c
+	src/entity.c
+	src/world.c
+	src/input_action.c
+	src/tilemap.c
+	src/animation.c
+	src/collision.c
+	src/camera_controller.c
+	src/tween.c
+	src/particles.c
+	src/pathfinding.c
+	src/timer.c
 )
 set(BRIDGEENGINE_UI_SOURCES
 	src/button.c
@@ -100,6 +143,7 @@ set(BRIDGEENGINE_UI_SOURCES
 )
 set(BRIDGEENGINE_MEDIA_SOURCES
 	src/audio.c
+	src/music.c
 	src/video/video.c
 )
 set(BRIDGEENGINE_THIRDPARTY_SOURCES
@@ -167,7 +211,15 @@ if(BRIDGEENGINE_BUILD_SHARED OR BRIDGEENGINE_BUILD_STATIC OR BRIDGEENGINE_BUILD_
 		if(NOT BRIDGEENGINE_FETCH_SDL)
 			message(FATAL_ERROR "SDL3_image was not found. Install it or configure with -DBRIDGEENGINE_FETCH_SDL=ON.")
 		endif()
-		set(SDLIMAGE_VENDORED ON CACHE BOOL "" FORCE)
+		if(NOT DEFINED SDLIMAGE_VENDORED)
+			set(SDLIMAGE_VENDORED ON CACHE BOOL "" FORCE)
+		endif()
+		if(SDLIMAGE_VENDORED)
+			message(STATUS "SDL3_image not found; downloading 3.4.4 and its vendored dependencies "
+						   "(set -DSDLIMAGE_VENDORED=OFF to use system zlib/libpng instead)")
+		else()
+			message(STATUS "SDL3_image not found; downloading 3.4.4 (system zlib/libpng)")
+		endif()
 		FetchContent_Declare(sdl3_image
 			URL https://github.com/libsdl-org/SDL_image/releases/download/release-3.4.4/SDL3_image-3.4.4.tar.gz
 			URL_HASH SHA256=29751304a13d25ac513f24305fa25b06a6edd9607718c90129b8350d35fc5573
@@ -189,7 +241,15 @@ if(BRIDGEENGINE_BUILD_SHARED OR BRIDGEENGINE_BUILD_STATIC OR BRIDGEENGINE_BUILD_
 		if(NOT BRIDGEENGINE_FETCH_SDL)
 			message(FATAL_ERROR "SDL3_ttf was not found. Install it or configure with -DBRIDGEENGINE_FETCH_SDL=ON.")
 		endif()
-		set(SDLTTF_VENDORED ON CACHE BOOL "" FORCE)
+		if(NOT DEFINED SDLTTF_VENDORED)
+			set(SDLTTF_VENDORED ON CACHE BOOL "" FORCE)
+		endif()
+		if(SDLTTF_VENDORED)
+			message(STATUS "SDL3_ttf not found; downloading 3.2.2 and its vendored dependencies "
+						   "(set -DSDLTTF_VENDORED=OFF to use system freetype/harfbuzz instead)")
+		else()
+			message(STATUS "SDL3_ttf not found; downloading 3.2.2 (system freetype/harfbuzz)")
+		endif()
 		FetchContent_Declare(sdl3_ttf
 			URL https://github.com/libsdl-org/SDL_ttf/releases/download/release-3.2.2/SDL3_ttf-3.2.2.tar.gz
 			URL_HASH SHA256=63547d58d0185c833213885b635a2c0548201cc8f301e6587c0be1a67e1e045d
@@ -286,14 +346,21 @@ function(bridgeengine_configure_target target_name)
 endfunction()
 
 function(bridgeengine_copy_runtime_assets target_name)
-	if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/assets")
-		add_custom_command(TARGET ${target_name} POST_BUILD
-			COMMAND ${CMAKE_COMMAND} -E copy_directory
-				"${CMAKE_CURRENT_SOURCE_DIR}/examples/assets"
-				"$<TARGET_FILE_DIR:${target_name}>/assets"
-		)
+	# All desktop examples and the UI Kit share the build directory. Copying the
+	# assets once through a dependency avoids concurrent copy_directory races.
+	if(TARGET bridgeengine_runtime_assets)
+		add_dependencies(${target_name} bridgeengine_runtime_assets)
 	endif()
 endfunction()
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/assets" AND NOT TARGET bridgeengine_runtime_assets)
+	add_custom_target(bridgeengine_runtime_assets ALL
+		COMMAND ${CMAKE_COMMAND} -E copy_directory
+			"${CMAKE_CURRENT_SOURCE_DIR}/examples/assets"
+			"${CMAKE_CURRENT_BINARY_DIR}/assets"
+		COMMENT "Copying runtime assets"
+	)
+endif()
 
 if(BRIDGEENGINE_BUILD_TESTS)
 	enable_testing()
@@ -447,7 +514,10 @@ if(BRIDGEENGINE_BUILD_TESTS)
 	add_executable(bridgeengine_texture_test
 		tests/texture_test.c
 		src/texture.c
+		src/texture_bc.c
 		src/io.c
+		src/error.c
+		src/transform.c
 		src/platform/platform.c
 	)
 	target_include_directories(bridgeengine_texture_test PRIVATE
@@ -456,6 +526,269 @@ if(BRIDGEENGINE_BUILD_TESTS)
 		"${CMAKE_CURRENT_SOURCE_DIR}/src"
 	)
 	add_test(NAME bridgeengine.texture COMMAND bridgeengine_texture_test)
+	target_link_libraries(bridgeengine_texture_test PRIVATE m)
+
+	add_executable(bridgeengine_frame_test
+		tests/frame_test.c
+		src/core/init.c
+		src/core/render_context.c
+		src/frame.c
+		src/transform.c
+		src/error.c
+		src/platform/platform.c
+	)
+	target_include_directories(bridgeengine_frame_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	target_link_libraries(bridgeengine_frame_test PRIVATE m)
+	add_test(NAME bridgeengine.frame COMMAND bridgeengine_frame_test)
+
+	add_executable(bridgeengine_draw_transform_test
+		tests/draw_transform_test.c
+		src/core/init.c
+		src/core/render_context.c
+		src/frame.c
+		src/transform.c
+		src/camera.c
+		src/error.c
+		src/platform/platform.c
+	)
+	target_include_directories(bridgeengine_draw_transform_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	target_link_libraries(bridgeengine_draw_transform_test PRIVATE m)
+	add_test(NAME bridgeengine.draw_transform COMMAND bridgeengine_draw_transform_test)
+
+	add_executable(bridgeengine_entity_test
+		tests/entity_test.c
+		src/entity.c
+		src/texture.c
+		src/texture_bc.c
+		src/transform.c
+		src/error.c
+	)
+	target_include_directories(bridgeengine_entity_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	target_link_libraries(bridgeengine_entity_test PRIVATE m)
+	add_test(NAME bridgeengine.entity COMMAND bridgeengine_entity_test)
+
+	add_executable(bridgeengine_atlas_test
+		tests/atlas_test.c
+		src/atlas.c
+		src/texture.c
+		src/texture_bc.c
+		src/transform.c
+		src/error.c
+	)
+	target_include_directories(bridgeengine_atlas_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	target_link_libraries(bridgeengine_atlas_test PRIVATE m)
+	add_test(NAME bridgeengine.atlas COMMAND bridgeengine_atlas_test)
+
+	add_executable(bridgeengine_sprite_batch_test
+		tests/sprite_batch_test.c
+		src/sprite_batch.c
+		src/texture.c
+		src/texture_bc.c
+		src/transform.c
+		src/error.c
+	)
+	target_include_directories(bridgeengine_sprite_batch_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	target_link_libraries(bridgeengine_sprite_batch_test PRIVATE m)
+	add_test(NAME bridgeengine.sprite_batch COMMAND bridgeengine_sprite_batch_test)
+
+	add_executable(bridgeengine_pathfinding_test
+		tests/pathfinding_test.c
+		src/pathfinding.c
+		src/tilemap.c
+		src/error.c
+	)
+	target_include_directories(bridgeengine_pathfinding_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	target_link_libraries(bridgeengine_pathfinding_test PRIVATE m)
+	add_test(NAME bridgeengine.pathfinding COMMAND bridgeengine_pathfinding_test)
+
+	add_executable(bridgeengine_timer_test
+		tests/timer_test.c
+		src/timer.c
+	)
+	target_include_directories(bridgeengine_timer_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	add_test(NAME bridgeengine.timer COMMAND bridgeengine_timer_test)
+
+	add_executable(bridgeengine_collision_test
+		tests/collision_test.c
+		src/collision.c
+	)
+	target_include_directories(bridgeengine_collision_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	add_test(NAME bridgeengine.collision COMMAND bridgeengine_collision_test)
+
+	add_executable(bridgeengine_tween_test
+		tests/tween_test.c
+		src/tween.c
+	)
+	target_include_directories(bridgeengine_tween_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	add_test(NAME bridgeengine.tween COMMAND bridgeengine_tween_test)
+
+	add_executable(bridgeengine_camera_controller_test
+		tests/camera_controller_test.c
+		src/camera_controller.c
+	)
+	target_include_directories(bridgeengine_camera_controller_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	target_link_libraries(bridgeengine_camera_controller_test PRIVATE m)
+	add_test(NAME bridgeengine.camera_controller COMMAND bridgeengine_camera_controller_test)
+
+	add_executable(bridgeengine_particles_test
+		tests/particles_test.c
+		src/particles.c
+	)
+	target_include_directories(bridgeengine_particles_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	add_test(NAME bridgeengine.particles COMMAND bridgeengine_particles_test)
+
+	add_executable(bridgeengine_vertical_slice_test
+		tests/vertical_slice_test.c
+		src/world.c
+		src/entity.c
+		src/transform.c
+		src/error.c
+		src/tilemap.c
+		src/animation.c
+	)
+	target_include_directories(bridgeengine_vertical_slice_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	target_link_libraries(bridgeengine_vertical_slice_test PRIVATE m)
+	add_test(NAME bridgeengine.vertical_slice COMMAND bridgeengine_vertical_slice_test)
+
+	add_executable(bridgeengine_world_test
+		tests/world_test.c
+		src/world.c
+		src/entity.c
+		src/transform.c
+		src/error.c
+	)
+	target_include_directories(bridgeengine_world_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	target_link_libraries(bridgeengine_world_test PRIVATE m)
+	add_test(NAME bridgeengine.world COMMAND bridgeengine_world_test)
+
+	add_executable(bridgeengine_input_action_test
+		tests/input_action_test.c
+		src/input_action.c
+		src/input/input.c
+	)
+	target_include_directories(bridgeengine_input_action_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	add_test(NAME bridgeengine.input_action COMMAND bridgeengine_input_action_test)
+
+	add_executable(bridgeengine_tilemap_test
+		tests/tilemap_test.c
+		src/tilemap.c
+		src/error.c
+	)
+	target_include_directories(bridgeengine_tilemap_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	target_link_libraries(bridgeengine_tilemap_test PRIVATE m)
+	add_test(NAME bridgeengine.tilemap COMMAND bridgeengine_tilemap_test)
+
+	add_executable(bridgeengine_project_ext_test
+		tests/project_ext_test.c
+		src/project.c
+	)
+	target_include_directories(bridgeengine_project_ext_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	add_test(NAME bridgeengine.project_ext COMMAND bridgeengine_project_ext_test)
+
+	add_executable(bridgeengine_animation_test
+		tests/animation_test.c
+		src/animation.c
+	)
+	target_include_directories(bridgeengine_animation_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	add_test(NAME bridgeengine.animation COMMAND bridgeengine_animation_test)
+
+	add_executable(bridgeengine_bctex_test
+		tests/bctex_test.c
+		src/texture.c
+		src/texture_bc.c
+		src/transform.c
+		src/error.c
+	)
+	target_include_directories(bridgeengine_bctex_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	target_link_libraries(bridgeengine_bctex_test PRIVATE m)
+	add_test(NAME bridgeengine.bctex COMMAND bridgeengine_bctex_test)
+
+	add_executable(bridgeengine_texture_draw_test
+		tests/texture_draw_test.c
+		src/texture.c
+		src/texture_bc.c
+		src/transform.c
+		src/error.c
+	)
+	target_include_directories(bridgeengine_texture_draw_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	target_link_libraries(bridgeengine_texture_draw_test PRIVATE m)
+	add_test(NAME bridgeengine.texture_draw COMMAND bridgeengine_texture_draw_test)
 
 	add_executable(bridgeengine_math_geometry_test
 		tests/math_geometry_test.c
@@ -501,10 +834,14 @@ if(BRIDGEENGINE_BUILD_TESTS)
 	add_executable(bridgeengine_platform_capabilities_test
 		tests/platform_capabilities_test.c
 		src/audio.c
+		src/music_stub.c
 		src/io.c
 		src/video/video_stub.c
 		src/core/init.c
 		src/core/render_context.c
+		src/error.c
+		src/frame.c
+		src/transform.c
 		src/platform/platform.c
 	)
 	target_include_directories(bridgeengine_platform_capabilities_test PRIVATE
@@ -519,6 +856,9 @@ if(BRIDGEENGINE_BUILD_TESTS)
 		tests/public_lifecycle_test.c
 		src/core/init.c
 		src/core/render_context.c
+		src/error.c
+		src/frame.c
+		src/transform.c
 		src/platform/platform.c
 	)
 	target_include_directories(bridgeengine_public_lifecycle_test PRIVATE
@@ -585,6 +925,24 @@ if(BRIDGEENGINE_BUILD_TESTS)
 					${BRIDGEENGINE_INSTALL_SMOKE_ARGS}
 					-P ${CMAKE_CURRENT_SOURCE_DIR}/tests/install_tree_smoke.cmake
 			)
+			if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.bridgeengine-deps/lib/pkgconfig")
+				set(_bridgeengine_smoke_pkgconfig
+					"${CMAKE_CURRENT_SOURCE_DIR}/.bridgeengine-deps/lib/pkgconfig")
+				if(DEFINED ENV{PKG_CONFIG_PATH} AND NOT "$ENV{PKG_CONFIG_PATH}" STREQUAL "")
+					string(APPEND _bridgeengine_smoke_pkgconfig ":$ENV{PKG_CONFIG_PATH}")
+				endif()
+				set(_bridgeengine_smoke_environment
+					"PKG_CONFIG_PATH=${_bridgeengine_smoke_pkgconfig}")
+				set(_bridgeengine_smoke_ldpath
+					"${CMAKE_CURRENT_SOURCE_DIR}/.bridgeengine-deps/lib")
+				if(DEFINED ENV{LD_LIBRARY_PATH} AND NOT "$ENV{LD_LIBRARY_PATH}" STREQUAL "")
+					string(APPEND _bridgeengine_smoke_ldpath ":$ENV{LD_LIBRARY_PATH}")
+				endif()
+				list(APPEND _bridgeengine_smoke_environment
+					"LD_LIBRARY_PATH=${_bridgeengine_smoke_ldpath}")
+				set_tests_properties(bridgeengine.install_tree_smoke PROPERTIES
+					ENVIRONMENT "${_bridgeengine_smoke_environment}")
+			endif()
 		endif()
 	endif()
 
@@ -592,8 +950,12 @@ if(BRIDGEENGINE_BUILD_TESTS)
 		tests/resource_shutdown_test.c
 		src/core/render_context.c
 		src/texture.c
+		src/texture_bc.c
 		src/audio.c
+		src/music_stub.c
 		src/io.c
+		src/error.c
+		src/transform.c
 		src/video/video_stub.c
 		src/platform/platform.c
 	)
@@ -605,10 +967,12 @@ if(BRIDGEENGINE_BUILD_TESTS)
 	add_test(NAME bridgeengine.resource_shutdown
 		COMMAND bridgeengine_resource_shutdown_test
 	)
+	target_link_libraries(bridgeengine_resource_shutdown_test PRIVATE m)
 
 	add_executable(bridgeengine_text_asset_test
 		tests/text_asset_test.c
 		src/text.c
+		src/transform.c
 		src/platform/platform.c
 	)
 	target_include_directories(bridgeengine_text_asset_test PRIVATE
@@ -617,10 +981,12 @@ if(BRIDGEENGINE_BUILD_TESTS)
 		"${CMAKE_CURRENT_SOURCE_DIR}/src"
 	)
 	add_test(NAME bridgeengine.text_assets COMMAND bridgeengine_text_asset_test)
+	target_link_libraries(bridgeengine_text_asset_test PRIVATE m)
 
 	add_executable(bridgeengine_text_cache_test
 		tests/text_cache_test.c
 		src/text.c
+		src/transform.c
 		src/core/render_context.c
 		src/platform/platform.c
 	)
@@ -638,6 +1004,7 @@ if(BRIDGEENGINE_BUILD_TESTS)
 		target_link_options(bridgeengine_text_cache_test PRIVATE -fsanitize=address)
 	endif()
 	add_test(NAME bridgeengine.text_cache COMMAND bridgeengine_text_cache_test)
+	target_link_libraries(bridgeengine_text_cache_test PRIVATE m)
 
 	add_executable(bridgeengine_log_test
 		tests/log_test.c
@@ -658,6 +1025,7 @@ if(BRIDGEENGINE_BUILD_TESTS)
 	add_executable(bridgeengine_file_io_test
 		tests/file_io_test.c
 		src/io.c
+		src/error.c
 		src/platform/platform.c
 	)
 	target_include_directories(bridgeengine_file_io_test PRIVATE
@@ -670,11 +1038,13 @@ if(BRIDGEENGINE_BUILD_TESTS)
 	add_executable(bridgeengine_pack_test
 		tests/pack_test.c
 		src/pack.c
+		src/error.c
 		thirdparty/rzip/rz_lib.c
 	)
 	target_include_directories(bridgeengine_pack_test PRIVATE
 		"${CMAKE_CURRENT_SOURCE_DIR}/include"
 		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
 		"${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rzip"
 	)
 	add_test(NAME bridgeengine.pack COMMAND bridgeengine_pack_test "${CMAKE_CURRENT_BINARY_DIR}")
@@ -682,11 +1052,13 @@ if(BRIDGEENGINE_BUILD_TESTS)
 	add_executable(bridgeengine_pack_index_test
 		tests/pack_index_test.c
 		src/pack.c
+		src/error.c
 		thirdparty/rzip/rz_lib.c
 	)
 	target_include_directories(bridgeengine_pack_index_test PRIVATE
 		"${CMAKE_CURRENT_SOURCE_DIR}/include"
 		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
 		"${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rzip"
 	)
 	if(BRIDGEENGINE_ENABLE_ASAN AND CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
@@ -703,7 +1075,11 @@ if(BRIDGEENGINE_BUILD_TESTS)
 		src/pack.c
 		src/resource.c
 		src/audio.c
+		src/music_stub.c
 		src/texture.c
+		src/texture_bc.c
+		src/error.c
+		src/transform.c
 		src/video/video_stub.c
 		src/platform/platform.c
 		thirdparty/rzip/rz_lib.c
@@ -717,21 +1093,43 @@ if(BRIDGEENGINE_BUILD_TESTS)
 	add_test(NAME bridgeengine.resource_mem
 		COMMAND bridgeengine_resource_mem_test "${CMAKE_CURRENT_BINARY_DIR}"
 	)
+	target_link_libraries(bridgeengine_resource_mem_test PRIVATE m)
+
+	if(BRIDGEENGINE_BUILD_SHARED OR BRIDGEENGINE_BUILD_STATIC OR BRIDGEENGINE_BUILD_EXAMPLES)
+		add_executable(bridgeengine_music_test
+			tests/music_test.c
+			src/music.c
+			src/audio.c
+			src/io.c
+			src/error.c
+		)
+		bridgeengine_configure_target(bridgeengine_music_test)
+		add_test(NAME bridgeengine.music
+			COMMAND bridgeengine_music_test
+			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+		)
+	endif()
 
 	if(BRIDGEENGINE_BUILD_SHARED OR BRIDGEENGINE_BUILD_STATIC OR BRIDGEENGINE_BUILD_EXAMPLES)
 		add_executable(bridgeengine_media_pack_backend_test
 			tests/media_pack_backend_test.c
 			src/platform/platform.c
 			src/platform/sdl3/platform_sdl3.c
+			src/platform/sdl3/sdlgpu_renderer.c
 			src/platform/sdl3/keycode.c
 			src/core/init.c
 			src/core/render_context.c
 			src/audio.c
+			src/music.c
 			src/texture.c
+			src/texture_bc.c
 			src/io.c
 			src/resource.c
 			src/pack.c
 			src/video/video.c
+			src/error.c
+			src/frame.c
+			src/transform.c
 			thirdparty/rzip/rz_lib.c
 		)
 		bridgeengine_configure_target(bridgeengine_media_pack_backend_test)
@@ -774,12 +1172,48 @@ if(BRIDGEENGINE_BUILD_STATIC)
 		"${CMAKE_CURRENT_SOURCE_DIR}/include"
 		"${CMAKE_CURRENT_BINARY_DIR}/generated"
 	)
+
+	# Build-time atlas packer: bakes a directory of images into one page plus
+	# the BE_ATLAS manifest consumed by bapi_atlas_load().
+	add_executable(bridgeengine_atlas_pack
+		tools/atlas_pack.c
+		thirdparty/rzip/rz_lib.c
+	)
+	add_executable(bridgeengine_bctex_pack
+		tools/bctex_pack.c
+	)
+	target_link_libraries(bridgeengine_bctex_pack PRIVATE
+		${BRIDGEENGINE_SDL3_TARGET}
+		${BRIDGEENGINE_SDL3_IMAGE_TARGET}
+	)
+	target_include_directories(bridgeengine_atlas_pack PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rzip"
+	)
+	target_link_libraries(bridgeengine_atlas_pack PRIVATE
+		${BRIDGEENGINE_SDL3_TARGET}
+		${BRIDGEENGINE_SDL3_IMAGE_TARGET}
+	)
+
+	# Generic cooked-asset packer (RZip store-only).
+	add_executable(bridgeengine_rz_pack
+		tools/rz_pack.c
+		thirdparty/rzip/rz_lib.c
+	)
+	target_include_directories(bridgeengine_rz_pack PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/rzip"
+	)
 endif()
 
 if(BRIDGEENGINE_BUILD_EXAMPLES)
 	set(BRIDGEENGINE_EXAMPLE_LINK_TARGET bridgeengine_static)
 	if(NOT TARGET bridgeengine_static)
 		set(BRIDGEENGINE_EXAMPLE_LINK_TARGET bridgeengine_shared)
+	endif()
+	if(TARGET bridgeengine_atlas_pack AND TARGET bridgeengine_bctex_pack AND TARGET bridgeengine_rz_pack)
+		install(TARGETS bridgeengine_atlas_pack bridgeengine_bctex_pack bridgeengine_rz_pack
+			RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 	endif()
 
 	add_executable(bridgeengine_desktop_example examples/desktop/main.c)
@@ -793,9 +1227,52 @@ if(BRIDGEENGINE_BUILD_EXAMPLES)
 	add_executable(bridgeengine_log_example examples/log/log_test.c)
 	target_link_libraries(bridgeengine_log_example PRIVATE ${BRIDGEENGINE_EXAMPLE_LINK_TARGET})
 	bridgeengine_copy_runtime_assets(bridgeengine_log_example)
+
+	add_executable(bridgeengine_vertical_slice_example examples/vertical_slice/main.c)
+	target_link_libraries(bridgeengine_vertical_slice_example PRIVATE ${BRIDGEENGINE_EXAMPLE_LINK_TARGET})
+	if(UNIX)
+		target_link_libraries(bridgeengine_vertical_slice_example PRIVATE m)
+	endif()
+	bridgeengine_copy_runtime_assets(bridgeengine_vertical_slice_example)
 endif()
 
-if(BRIDGEENGINE_BUILD_EDITOR AND TARGET bridgeengine_static)
+if(BRIDGEENGINE_BUILD_CLI)
+	file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}" _bcli_engine_dir)
+	file(TO_CMAKE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/templates/project" _bcli_template_dir)
+	add_executable(bridgeengine_cli
+		cli/main.cpp
+		cli/commands.cpp
+		cli/project.cpp
+		cli/template.cpp
+		cli/process.cpp
+		cli/pack.cpp
+		cli/validate.cpp
+		cli/watch.cpp
+	)
+	set_target_properties(bridgeengine_cli PROPERTIES OUTPUT_NAME bcli)
+	target_compile_features(bridgeengine_cli PRIVATE cxx_std_17)
+	target_compile_definitions(bridgeengine_cli PRIVATE
+		BCLI_VERSION="${PROJECT_VERSION}"
+		BCLI_ENGINE_DIR="${_bcli_engine_dir}"
+		BCLI_TEMPLATE_DIR="${_bcli_template_dir}"
+	)
+	if(MSVC)
+		target_compile_options(bridgeengine_cli PRIVATE /utf-8 /W4)
+	else()
+		target_compile_options(bridgeengine_cli PRIVATE -Wall -Wextra)
+	endif()
+	if(BRIDGEENGINE_BUILD_TESTS)
+		add_test(NAME bridgeengine.cli_self_test
+			COMMAND $<TARGET_FILE:bridgeengine_cli> self-test)
+		set_tests_properties(bridgeengine.cli_self_test PROPERTIES
+			WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+	endif()
+	install(TARGETS bridgeengine_cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+	install(DIRECTORY templates/project
+		DESTINATION ${CMAKE_INSTALL_DATADIR}/bridgeengine/templates)
+endif()
+
+if(BRIDGEENGINE_BUILD_UIKIT AND TARGET bridgeengine_static)
 	if(NOT TARGET imgui::imgui)
 		set(BRIDGEENGINE_IMGUI_SOURCE_DIR "" CACHE PATH "Path to a local Dear ImGui (docking branch) source tree")
 		if(BRIDGEENGINE_IMGUI_SOURCE_DIR)
@@ -810,6 +1287,10 @@ if(BRIDGEENGINE_BUILD_EDITOR AND TARGET bridgeengine_static)
 				message(FATAL_ERROR
 					"ImGui was not found. Configure with -DBRIDGEENGINE_FETCH_IMGUI=ON to fetch the docking branch.")
 			endif()
+			message(STATUS
+				"Dear ImGui not found; cloning the docking branch (network). "
+				"Set -DBRIDGEENGINE_IMGUI_SOURCE_DIR=... or "
+				"-DBRIDGEENGINE_BUILD_UIKIT=OFF to skip this step.")
 			FetchContent_Declare(imgui
 				GIT_REPOSITORY https://github.com/ocornut/imgui.git
 				GIT_TAG v1.92.8-docking
@@ -840,55 +1321,64 @@ if(BRIDGEENGINE_BUILD_EDITOR AND TARGET bridgeengine_static)
 		target_compile_features(imgui PUBLIC cxx_std_11)
 	endif()
 
-	set(BRIDGEENGINE_EDITOR_SOURCES
-		editor/main.cpp
-		editor/document_model.cpp
-		editor/commands.cpp
-		editor/platform_dialogs.cpp
-		editor/project_templates.cpp
-		editor/project_file.cpp
-		editor/i18n.cpp
-		editor/build_run.cpp
-		editor/panels/menu.cpp
-		editor/panels/documents.cpp
-		editor/panels/toolbar.cpp
-		editor/panels/viewport.cpp
-		editor/panels/palette.cpp
-		editor/panels/preview.cpp
-		editor/panels/tree.cpp
-		editor/panels/properties.cpp
-		editor/panels/scenes.cpp
-		editor/panels/welcome.cpp
-		editor/panels/build_output.cpp
-		editor/panels/context_menu.cpp
-		editor/panels/history.cpp
-		editor/templates.cpp
-		editor/titlebar.cpp
+	set(BRIDGEENGINE_UIKIT_SOURCES
+		uikit/main.cpp
+		uikit/document_model.cpp
+		uikit/commands.cpp
+		uikit/platform_dialogs.cpp
+		uikit/project_templates.cpp
+		uikit/project_file.cpp
+		uikit/i18n.cpp
+		uikit/build_run.cpp
+		uikit/panels/menu.cpp
+		uikit/panels/documents.cpp
+		uikit/panels/toolbar.cpp
+		uikit/panels/viewport.cpp
+		uikit/panels/palette.cpp
+		uikit/panels/preview.cpp
+		uikit/panels/tree.cpp
+		uikit/panels/properties.cpp
+		uikit/panels/scenes.cpp
+		uikit/panels/welcome.cpp
+		uikit/panels/build_output.cpp
+		uikit/panels/context_menu.cpp
+		uikit/panels/history.cpp
+		uikit/templates.cpp
+		uikit/titlebar.cpp
 	)
-	add_executable(bridgeengine_editor ${BRIDGEENGINE_EDITOR_SOURCES})
-	target_include_directories(bridgeengine_editor PRIVATE
+	add_executable(bridgeengine_uikit ${BRIDGEENGINE_UIKIT_SOURCES})
+	target_include_directories(bridgeengine_uikit PRIVATE
 		"${CMAKE_CURRENT_SOURCE_DIR}/include"
 		"${CMAKE_CURRENT_SOURCE_DIR}/src"
 		"${CMAKE_CURRENT_BINARY_DIR}/generated"
 	)
-	target_compile_definitions(bridgeengine_editor PRIVATE BAPI_LOG_ENABLED)
+	target_compile_definitions(bridgeengine_uikit PRIVATE BAPI_LOG_ENABLED)
 	string(REPLACE "\\" "/" BRIDGEENGINE_SOURCE_DIR_FORWARD "${CMAKE_CURRENT_SOURCE_DIR}")
-	target_compile_definitions(bridgeengine_editor PRIVATE
+	target_compile_definitions(bridgeengine_uikit PRIVATE
 		BRIDGEENGINE_SOURCE_DIR="${BRIDGEENGINE_SOURCE_DIR_FORWARD}"
 	)
-	target_compile_features(bridgeengine_editor PRIVATE cxx_std_14)
+	target_compile_features(bridgeengine_uikit PRIVATE cxx_std_14)
 	if(MSVC)
-		target_compile_options(bridgeengine_editor PRIVATE /utf-8 /W4)
+		target_compile_options(bridgeengine_uikit PRIVATE /utf-8 /W4)
 	endif()
 	if(WIN32)
-		target_link_libraries(bridgeengine_editor PRIVATE comdlg32 shell32)
+		target_link_libraries(bridgeengine_uikit PRIVATE comdlg32 shell32)
 	endif()
-	target_link_libraries(bridgeengine_editor PRIVATE
+	target_link_libraries(bridgeengine_uikit PRIVATE
 		bridgeengine_static
 		imgui::imgui
 		${BRIDGEENGINE_PLATFORM_LIBS}
 	)
-	bridgeengine_copy_runtime_assets(bridgeengine_editor)
+	bridgeengine_copy_runtime_assets(bridgeengine_uikit)
+
+	# Compatibility shim: scripts that still launch bridgeengine_editor get a
+	# copy of the UI Kit binary. New work should use bridgeengine_uikit.
+	add_custom_command(TARGET bridgeengine_uikit POST_BUILD
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			"$<TARGET_FILE:bridgeengine_uikit>"
+			"$<TARGET_FILE_DIR:bridgeengine_uikit>/bridgeengine_editor${CMAKE_EXECUTABLE_SUFFIX}"
+	)
+	add_custom_target(bridgeengine_editor DEPENDS bridgeengine_uikit)
 endif()
 
 if(BRIDGEENGINE_BUILD_XJ380)
@@ -920,6 +1410,8 @@ if(BRIDGEENGINE_BUILD_XJ380)
 		src/core/render_context.c
 		src/core/init.c
 		src/core/version.c
+		src/error.c
+		src/frame.c
 		src/io.c
 		src/pack_stub.c
 		src/resource.c
@@ -929,8 +1421,23 @@ if(BRIDGEENGINE_BUILD_XJ380)
 		src/text.c
 		src/math.c
 		src/texture.c
+		src/texture_bc.c
 		src/input/input.c
 		src/camera.c
+		src/transform.c
+		src/sprite_batch.c
+		src/atlas.c
+		src/entity.c
+		src/world.c
+		src/input_action.c
+		src/tilemap.c
+		src/animation.c
+		src/collision.c
+		src/camera_controller.c
+		src/tween.c
+		src/particles.c
+		src/pathfinding.c
+		src/timer.c
 		src/button.c
 		src/scene.c
 		src/level.c
@@ -939,6 +1446,7 @@ if(BRIDGEENGINE_BUILD_XJ380)
 		src/ui.c
 		src/ui_xml.c
 		src/audio.c
+		src/music_stub.c
 		src/video/video_stub.c
 	)
 	set(XJ380_CPP_SOURCES src/platform/xj380/platform_xj380.cpp)

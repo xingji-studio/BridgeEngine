@@ -109,6 +109,13 @@ static void minios_delay(uint32_t ms)
 	sleep_ms(ms);
 }
 
+static uint32_t minios_get_ticks(void);
+
+static uint64_t minios_get_time_ns(void)
+{
+	return (uint64_t)minios_get_ticks() * 1000000ULL;
+}
+
 static uint32_t minios_get_ticks(void)
 {
 	return (uint32_t)(uptime_ms() - g_start_ms);
@@ -133,6 +140,27 @@ static plat_window_t minios_create_window(const char *title, int width, int heig
 	w->pixels  = win.pixels;
 	g_current_window = w;
 	return w;
+}
+
+static void *minios_get_native_window(plat_window_t window)
+{
+	(void)window;
+	return NULL;
+}
+
+static int minios_set_window_fullscreen(plat_window_t window, int enabled)
+{
+	(void)window;
+	(void)enabled;
+	return -1;
+}
+
+static int minios_get_window_size(plat_window_t window, int *width, int *height)
+{
+	if (!window) return -1;
+	if (width) *width = window->width;
+	if (height) *height = window->height;
+	return 0;
 }
 
 static void minios_destroy_window(plat_window_t window)
@@ -450,8 +478,8 @@ static plat_texture_t minios_create_texture(plat_renderer_t renderer, plat_pixel
 											plat_texture_access_t access, int width, int height)
 {
 	(void)renderer;
-	(void)format;
 	(void)access;
+	if (format != PLAT_PIXELFORMAT_ARGB8888) return NULL;
 	plat_texture_t t = malloc(sizeof(struct plat_texture));
 	if (!t) return NULL;
 	t->width	= width;
@@ -819,6 +847,7 @@ static const plat_interface_t minios_interface = {
 			.quit		  = minios_quit,
 			.delay		  = minios_delay,
 			.get_ticks	  = minios_get_ticks,
+			.get_time_ns  = minios_get_time_ns,
 			.log_debug	  = minios_log_debug,
 			.log_info	  = minios_log_info,
 			.log_warn	  = minios_log_warn,
@@ -829,8 +858,11 @@ static const plat_interface_t minios_interface = {
 		{
 			.create_window	 = minios_create_window,
 			.destroy_window	 = minios_destroy_window,
-			.poll_event		 = minios_poll_event,
-			.get_mouse_state = minios_get_mouse_state,
+			.poll_event			 = minios_poll_event,
+			.get_mouse_state	 = minios_get_mouse_state,
+			.get_native_window	 = minios_get_native_window,
+			.set_window_fullscreen = minios_set_window_fullscreen,
+			.get_window_size	 = minios_get_window_size,
 		},
 	.renderer =
 		{
