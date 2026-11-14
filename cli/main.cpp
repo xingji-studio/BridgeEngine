@@ -29,6 +29,7 @@ void print_help()
 	std::cout << "                                          bake assets, atlases or BC textures\n";
 	std::cout
 		<< "  ui validate [FILE|DIR]                  validate UI XML and referenced assets\n";
+	std::cout << "  assets scan|verify [--root DIR] [--out FILE]\n";
 	std::cout << "  watch [--build] [--run] [--interval MS]\n";
 	std::cout << "                                          rebuild on file changes\n";
 	std::cout << "  set-engine <path>                       update the engine source path\n";
@@ -75,6 +76,7 @@ int main(int argc, char **argv)
 	if (command == "remove-doc") return bcli::cmd_remove_document(rest);
 	if (command == "list-docs") return bcli::cmd_list_documents(rest);
 	if (command == "pack") return bcli::cmd_pack(rest);
+	if (command == "assets") return bcli::cmd_assets(rest);
 	if (command == "ui") return bcli::cmd_ui(rest);
 	if (command == "watch") return bcli::cmd_watch(rest);
 	if (command == "set-engine") return bcli::cmd_set_engine(rest);

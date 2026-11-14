@@ -93,6 +93,19 @@ BAPI 自己定义事件枚举和事件结构。平台适配器产生 `plat_event
 
 SDL_GPU 纹理支持 `B8G8R8A8_UNORM` 以及设备支持的 `BC1_RGBA_UNORM`/`BC3_RGBA_UNORM`；`.bctex` 由 `bapi_texture_load()` 自动识别，Vulkan 直接上传压缩页，SDL_Renderer 回退 CPU 解码。GPU 后端目前每帧等待 GPU idle，后续可换成帧环+围栏以提升吞吐。
 
+## 数据驱动：序列化与资产清单
+
+- `src/tilemap_io.c`：`.btm` 文本格式，版本头 + 网格 + solid 位。
+- `src/world_io.c`：`.bworld` 文本格式，实体树（transform/可见性/sprite/tint）+ 摄像机。
+- `src/asset_manifest.c`：`assets.manifest` 载入与校验，启动期可一次性报告缺失资产。
+- `src/gameplay_io_stub.c`：XJ380 无写入能力，序列化与清单在 XJ380 上返回失败。
+
+两个 `.b*` 格式共用一套约定：`#` 注释、空行忽略、未知键忽略、版本必须落在
+`1..BAPI_SERIALIZE_VERSION`、原子写入（XJ380 退化直写）。资源引用一律是纹理/文件路径，
+加载时重新打开，因此缺资产是加载错误而不是静默空精灵。
+
+`examples/assets/maps/level01.btm` 由 vertical slice 直接加载，内置地图只在文件缺失时兜底。
+
 ## 世界运行时与 gameplay 基础
 
 - `src/world.c`：根实体容器、spawn/despawn 延迟销毁、暂停、活动摄像机、统一 update/draw。

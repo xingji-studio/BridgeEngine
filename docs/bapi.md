@@ -1413,6 +1413,87 @@ int	 bapi_ui_component_set_relative(bapi_ui_component_t component, int relative)
 - 这些属性与 XML 双向持久化一致：`slider` / `progress` 的 `step`（非 1 时）随 `min` / `max` /
   `value` 一起写出；`columns`、`radius`、`sides`、`checked`、`relative` 按非默认值写出。
 
+## 序列化与资产清单
+
+### Tilemap `.btm`
+
+```c
+bapi_tilemap_t map = bapi_tilemap_load("assets/maps/level01.btm");
+bapi_tilemap_save(map, "assets/maps/level01.btm");
+```
+
+文本格式，带版本头：
+
+```text
+BTM 1
+size 40 24
+tile 32 32
+tileset assets/tiles/atlas.png 8
+tiles
+<w*h 个整数，行优先，-1 为空>
+solid
+<w*h 个 0/1>
+```
+
+- `#` 到行尾是注释，空行忽略，未知键忽略
+- `size`、`tile`、`tiles` 必需；`solid` 缺省表示全部不可碰撞
+- `tileset` 可选；加载时经 `bapi_texture_load()` 重新打开，失败则整次加载失败
+- 版本必须落在 `1..BAPI_SERIALIZE_VERSION`，否则拒绝
+
+### World `.bworld`
+
+```c
+bapi_world_save(world, "assets/world/level01.bworld");
+bapi_world_load(world, "assets/world/level01.bworld");
+```
+
+```text
+BWORLD 1
+camera 480 270 1
+entity player
+pos 656 400
+rot 0
+scale 2 2
+visible 1
+sprite assets/vertical_slice/player.png 0 0 16 16
+tint 255 255 255 255
+entity hat
+pos 0 -14
+end
+end
+```
+
+- `entity` 开节点，`end` 关闭；不平衡或实体未闭合都是错误
+- `camera` 可选（默认 `0 0 1`）
+- `sprite` 路径是相对资源路径，加载时重新打开纹理
+- 实体名最长 63 字符，超长截断
+
+两个格式都用临时文件 + rename 原子写入（XJ380 无该能力，退化为直接写）。
+
+### 资产清单 `assets.manifest`
+
+```text
+BASSETS 1
+asset assets/ui/hud.xml
+asset assets/maps/level01.btm
+```
+
+```c
+bapi_asset_manifest_t m = bapi_asset_manifest_load("assets.manifest");
+int checked = 0;
+int missing = bapi_asset_manifest_verify(m, ".", &checked);
+if (missing > 0) {
+    fprintf(stderr, "%d/%d assets missing, first: %s\n",
+            missing, checked, bapi_asset_manifest_first_missing(m));
+}
+```
+
+`bapi_asset_manifest_verify()` 返回缺失条目数并把总数写入 `*checked`；`first_missing()`
+返回上一次校验里第一个缺失路径（清单对象持有，直到下次校验或销毁）。
+
+清单由 `bcli assets scan` 生成、`bcli assets verify` 校验；`bcli build` 在清单存在时会
+先校验，缺资产直接中断构建。详见 [cli.md](cli.md)。
+
 ## 数学、日志与版本
 
 ### 向量

@@ -70,6 +70,7 @@ int cmd_list_documents(const std::vector<std::string> &args);
 int cmd_set_engine(const std::vector<std::string> &args);
 int cmd_doctor(const std::vector<std::string> &args);
 int cmd_pack(const std::vector<std::string> &args);
+int cmd_assets(const std::vector<std::string> &args);
 int cmd_ui(const std::vector<std::string> &args);
 int cmd_watch(const std::vector<std::string> &args);
 int cmd_self_test(const std::vector<std::string> &args);

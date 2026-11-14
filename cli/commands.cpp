@@ -114,6 +114,17 @@ int build_project(Project &project, const std::string &configuration, bool clean
 	}
 	const fs::path	build_dir = project.root / "build";
 	std::error_code ec;
+
+	const fs::path assets_manifest = project.root / "assets.manifest";
+	if (fs::is_regular_file(assets_manifest, ec)) {
+		std::cout << "bcli: verifying " << assets_manifest.string() << "\n";
+		const int verification = cmd_assets({"verify", "--root", path_text(project.root),
+											 "--manifest", path_text(assets_manifest)});
+		if (verification != 0)
+			return fail(
+				"asset manifest verification failed; run `bcli assets scan` to refresh it");
+	}
+
 	if (clean) {
 		fs::remove_all(build_dir, ec);
 		if (ec) return fail("cannot clean " + build_dir.string() + ": " + ec.message());

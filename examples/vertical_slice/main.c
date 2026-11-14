@@ -427,9 +427,21 @@ static int init_game(game_t *game)
 	bapi_entity_set_texture(game->slime, game->player_sheet, idle_frame);
 	bapi_entity_set_tint(game->slime, bapi_color(140, 255, 160, 255));
 
-	game->map = bapi_tilemap_create(MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, TILE_SIZE);
-	if (!game->map) return report_error("failed to create tilemap");
-	build_map(game->map);
+	// Prefer the data-driven level so the .btm format is exercised here; fall
+	// back to the built-in layout when the file is absent.
+	const char *map_path =
+		find_asset("assets/maps/level01.btm", "examples/assets/maps/level01.btm");
+	if (map_path != NULL) {
+		game->map = bapi_tilemap_load(map_path);
+		if (game->map == NULL) {
+			fprintf(stderr, "failed to load %s: %s\n", map_path, bapi_get_last_error());
+		}
+	}
+	if (game->map == NULL) {
+		game->map = bapi_tilemap_create(MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, TILE_SIZE);
+		if (!game->map) return report_error("failed to create tilemap");
+		build_map(game->map);
+	}
 
 	game->timers = bapi_timer_manager_create();
 	if (!game->timers ||

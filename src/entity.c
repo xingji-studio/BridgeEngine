@@ -259,6 +259,21 @@ void bapi_entity_set_texture(bapi_entity_t entity, bapi_texture_t texture, bapi_
 	entity->source	= source;
 }
 
+bapi_texture_t bapi_entity_get_texture(bapi_entity_t entity)
+{
+	return entity ? entity->texture : NULL;
+}
+
+bapi_rect_t bapi_entity_get_source(bapi_entity_t entity)
+{
+	return entity ? entity->source : (bapi_rect_t){0.0f, 0.0f, 0.0f, 0.0f};
+}
+
+bapi_color_t bapi_entity_get_tint(bapi_entity_t entity)
+{
+	return entity ? entity->tint : (bapi_color_t){255, 255, 255, 255};
+}
+
 void bapi_entity_set_tint(bapi_entity_t entity, bapi_color_t tint)
 {
 	if (entity != NULL) entity->tint = tint;

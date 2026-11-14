@@ -52,6 +52,10 @@ src/
   atlas.c               ← .atlas 清单解析、region 查询与绘制
   entity.c              ← 轻量场景实体/父子层级/sprite 绘制
   error.c               ← bapi_get_last_error / 内部错误文本
+  tilemap_io.c          ← .btm 关卡读写（版本头 + 网格 + solid）
+  world_io.c            ← .bworld 实体树读写
+  asset_manifest.c      ← assets.manifest 载入与缺失校验
+  gameplay_io_stub.c    ← XJ380 无文件写入，序列化返回失败
 src/platform/sdl3/sdlgpu_renderer.c ← SDL_GPU/Vulkan 渲染器
 src/platform/sdl3/shaders/          ← GLSL 源与预编译 SPIR-V 头
   scene.c, level.c, button.c, xml_loader.c, log.c, io.c

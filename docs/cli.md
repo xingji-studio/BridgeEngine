@@ -160,6 +160,25 @@ bcli ui validate ui/                # 目录下所有 .xml（递归）
 
 每个错误输出一行 `path:line: message`，最后打印汇总；有错误时返回 1。
 
+### 资产清单
+
+```bash
+bcli assets scan                     # 扫描引用与 assets/ 下的文件，写 assets.manifest
+bcli assets scan --root . --out assets.manifest
+bcli assets verify                   # 校验清单里每个条目是否存在
+```
+
+`scan` 收集这些来源，去重排序后按项目相对路径写入：
+
+- `.bep` 的 `[documents]` 条目
+- `assets/` 下的全部文件
+- `*.btm` 中的 `tileset <path> <columns>`
+- `*.bworld` 中的 `sprite <path> ...`
+- `ui/*.xml` 与 `assets/**/*.xml` 中的 `src="..."`
+
+`verify` 逐条检查，缺失时打印 `missing <path>` 并返回 1。`bcli build` 在
+`assets.manifest` 存在时会先做一次校验，缺资产直接中断，避免运行时黑屏。
+
 ### 文件监视
 
 ```bash

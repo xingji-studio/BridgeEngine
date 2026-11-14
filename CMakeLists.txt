@@ -123,7 +123,10 @@ set(BRIDGEENGINE_RENDER_SOURCES
 	src/world.c
 	src/input_action.c
 	src/tilemap.c
+	src/tilemap_io.c
 	src/animation.c
+	src/world_io.c
+	src/asset_manifest.c
 	src/collision.c
 	src/camera_controller.c
 	src/tween.c
@@ -646,6 +649,48 @@ if(BRIDGEENGINE_BUILD_TESTS)
 		"${CMAKE_CURRENT_SOURCE_DIR}/src"
 	)
 	add_test(NAME bridgeengine.collision COMMAND bridgeengine_collision_test)
+
+	add_executable(bridgeengine_tilemap_io_test
+		tests/tilemap_io_test.c
+		src/tilemap_io.c
+		src/tilemap.c
+		src/error.c
+	)
+	target_include_directories(bridgeengine_tilemap_io_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	target_link_libraries(bridgeengine_tilemap_io_test PRIVATE m)
+	add_test(NAME bridgeengine.tilemap_io COMMAND bridgeengine_tilemap_io_test)
+
+	add_executable(bridgeengine_world_io_test
+		tests/world_io_test.c
+		src/world_io.c
+		src/world.c
+		src/entity.c
+		src/transform.c
+		src/error.c
+	)
+	target_include_directories(bridgeengine_world_io_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	target_link_libraries(bridgeengine_world_io_test PRIVATE m)
+	add_test(NAME bridgeengine.world_io COMMAND bridgeengine_world_io_test)
+
+	add_executable(bridgeengine_asset_manifest_test
+		tests/asset_manifest_test.c
+		src/asset_manifest.c
+		src/error.c
+	)
+	target_include_directories(bridgeengine_asset_manifest_test PRIVATE
+		"${CMAKE_CURRENT_SOURCE_DIR}/include"
+		"${CMAKE_CURRENT_BINARY_DIR}/generated"
+		"${CMAKE_CURRENT_SOURCE_DIR}/src"
+	)
+	add_test(NAME bridgeengine.asset_manifest COMMAND bridgeengine_asset_manifest_test)
 
 	add_executable(bridgeengine_tween_test
 		tests/tween_test.c
@@ -1246,6 +1291,7 @@ if(BRIDGEENGINE_BUILD_CLI)
 		cli/template.cpp
 		cli/process.cpp
 		cli/pack.cpp
+		cli/assets.cpp
 		cli/validate.cpp
 		cli/watch.cpp
 	)
@@ -1414,6 +1460,7 @@ if(BRIDGEENGINE_BUILD_XJ380)
 		src/frame.c
 		src/io.c
 		src/pack_stub.c
+		src/gameplay_io_stub.c
 		src/resource.c
 		src/log.c
 		src/draw.c

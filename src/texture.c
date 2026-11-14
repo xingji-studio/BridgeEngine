@@ -262,6 +262,11 @@ bapi_texture_t bapi_texture_load_from_memory(const void *data, size_t size)
 	return texture_from_surface("<memory>", surface);
 }
 
+const char *bapi_texture_get_path(bapi_texture_t texture)
+{
+	return texture ? texture->cache_key : NULL;
+}
+
 void bapi_texture_destroy(bapi_texture_t texture)
 {
 	bapi_texture_release(texture);

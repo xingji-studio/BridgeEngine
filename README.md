@@ -29,6 +29,8 @@ BridgeEngine 是一个跨平台 2D 图形引擎，提供简洁的 C API。桌面
 | **Tween** | 8 种 easing、manager、loop、finished |
 | **粒子** | 固定池、发射率、重力、颜色/透明度插值 |
 | **寻路** | tilemap A*，4/8 邻接，solid 阻挡 |
+| **序列化** | `.btm` 关卡与 `.bworld` 实体树文本格式，带版本头与原子写入 |
+| **资产清单** | `assets.manifest` + `bcli assets scan/verify`，缺资产构建期即失败 |
 | **定时器** | 帧驱动 one-shot / repeating，回调内可 cancel |
 | **场景管理** | 多场景创建/切换，生命周期回调 |
 | **关卡管理** | 关卡加载/卸载，序列管理，上下级切换 |

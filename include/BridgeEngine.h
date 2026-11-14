@@ -558,6 +558,10 @@ void bapi_entity_set_visible(bapi_entity_t entity, int visible);
 int	 bapi_entity_is_visible(bapi_entity_t entity);
 void bapi_entity_set_texture(bapi_entity_t entity, bapi_texture_t texture, bapi_rect_t source);
 void bapi_entity_set_tint(bapi_entity_t entity, bapi_color_t tint);
+
+bapi_texture_t bapi_entity_get_texture(bapi_entity_t entity);
+bapi_rect_t	   bapi_entity_get_source(bapi_entity_t entity);
+bapi_color_t   bapi_entity_get_tint(bapi_entity_t entity);
 void bapi_entity_set_update(bapi_entity_t entity, bapi_entity_update_fn update);
 void bapi_entity_update(bapi_entity_t entity, float delta_time);
 void bapi_entity_draw(bapi_entity_t entity);
@@ -630,6 +634,50 @@ bapi_rect_t		bapi_animator_get_frame(bapi_animator_t animator);
 bapi_texture_t	bapi_animator_get_texture(bapi_animator_t animator);
 const char	   *bapi_animator_get_clip(bapi_animator_t animator);
 int				bapi_animator_is_finished(bapi_animator_t animator);
+
+/* --- Serialization -------------------------------------------------------
+ * Text formats with an explicit version header. Parsers ignore unknown keys so
+ * a newer file still loads on an older runtime; a missing or future version is
+ * rejected. Saves are written atomically where the platform allows it.
+ *
+ *   .btm     tilemap grid, tileset reference, per-tile solid flags
+ *   .bworld  entity tree with transform, visibility, sprite and tint
+ *
+ * Sprite and tileset references are texture paths. Loading re-opens them via
+ * bapi_texture_load(), so a missing asset fails the load instead of rendering
+ * an empty sprite.
+ */
+#define BAPI_SERIALIZE_VERSION 1
+
+int			   bapi_tilemap_save(bapi_tilemap_t tilemap, const char *filepath);
+bapi_tilemap_t bapi_tilemap_load(const char *filepath);
+bapi_tilemap_t bapi_tilemap_load_from_memory(const char *text, size_t size);
+
+int bapi_world_save(bapi_world_t world, const char *filepath);
+int bapi_world_load(bapi_world_t world, const char *filepath);
+int bapi_world_load_from_memory(bapi_world_t world, const char *text, size_t size);
+
+/* Path a texture was loaded from, or NULL for memory/atlas-owned textures. */
+const char *bapi_texture_get_path(bapi_texture_t texture);
+
+/* --- Asset manifest ------------------------------------------------------
+ * A manifest lists project asset paths relative to the project root. Verify
+ * reports every path that is missing so a startup check can fail fast with a
+ * concrete list instead of a black screen.
+ */
+#define BAPI_ASSET_MANIFEST_VERSION 1
+
+typedef struct bapi_asset_manifest_internal *bapi_asset_manifest_t;
+
+bapi_asset_manifest_t bapi_asset_manifest_load(const char *filepath);
+void				  bapi_asset_manifest_destroy(bapi_asset_manifest_t manifest);
+int					  bapi_asset_manifest_count(bapi_asset_manifest_t manifest);
+const char			 *bapi_asset_manifest_get(bapi_asset_manifest_t manifest, int index);
+/* Returns the number of missing entries; *checked receives the entry count. */
+int bapi_asset_manifest_verify(bapi_asset_manifest_t manifest, const char *root,
+							   int *checked);
+/* Path of the first entry reported missing by the last verify, or NULL. */
+const char *bapi_asset_manifest_first_missing(bapi_asset_manifest_t manifest);
 
 /* --- Grid pathfinding ---------------------------------------------------
  * A* over a bapi_tilemap_t. Solid tiles are blocked. The returned path
